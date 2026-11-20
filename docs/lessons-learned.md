@@ -9,11 +9,17 @@ Platform-specific items are marked.
 | What you see | What it is | What to do |
 |---|---|---|
 | `ddev start` builds and starts containers, then `Failed waiting for web/db containers… web container exited`; `ddev logs -s web` ends with `mkcert -install` / `ERROR: failed to read the CA key: open /usr/local/lib/ddev/mkcert/rootCA-key.pem: permission denied` | Kiri bug #594: files copied into a container become root's | Expected on Kiri without #595. Use the fixed Kiri or the DDEV workaround branch |
-| `ddev-router already running, pushing new config...` then `failed to update router network aliases: failed to disconnect container … Kiri cannot disconnect a running container from its first network (ddev_default); stop the container first` | Problem 5: Kiri refuses `network disconnect` on a running container's first network | Expected when a second project starts while one runs, with released DDEV. Stop the other projects, or use the DDEV workaround branch (it recreates the router instead) |
+| `ddev-router already running, pushing new config...` then `failed to update router network aliases: failed to disconnect container … Kiri cannot disconnect a running container from its first network (ddev_default); stop the container first` (on a Mac with Kiri 0.2.2: `… Kiri cannot disconnect a container from its first network (ddev_default)`) | Problem 5: Kiri refuses `network disconnect` on a running container's first network | Expected when a second project starts while one runs, with released DDEV. Stop the other projects, or use the DDEV workaround branch (it recreates the router instead) |
+| Problem 5 again, though no other project is running | The router outlives stopped projects (and a failed start leaves its project running). Any start that changes the router's aliases (a different project) hits problem 5 | With released DDEV, remove the router first: `ddev poweroff` with Kiri's `DOCKER_CONTEXT` and `DDEV_XDG_CONFIG_HOME`. `ddev restart` of the same project is fine |
+| Kiri's log: `the VM's NAT network is still unreachable; published ports keep going over vsock … No route to host (os error 65)` | macOS Local Network privacy blocks the engine from the VM's NAT address (as it blocks Apple's container runtime on unattended Macs) | Harmless for DDEV: Kiri falls back to vsock and published ports work. Allow the prompt on the desktop if one appears |
 | `ddev-router is running, but nothing answers on host port(s) …` | DDEV checks the ports on the host's localhost | Linux nested: expected, because the ports are on the engine container's IP. **macOS: a real failure**, meaning Kiri isn't forwarding the ports to localhost. Record it |
 | `kiri: cannot start container: mount: mknod dev/null: Operation not permitted`, `ulimits: error setting rlimit type 7`, or `stdio: No such file or directory` | Problems 2 and 3: Kiri itself is running inside a user namespace | Linux nested only. Not expected on a Mac, where Kiri has its own VM |
 | `VM did not boot: File exists (os error 17)` after restarting a Linux engine container | Leftover `/run/kiri-agent-<pid>-<n>` directories in a persistent `/run` | Linux nested only, and fixed in `scripts/run-kiri-engine.sh` (`--tmpfs /run`) |
 | `web container reaches host via host.docker.internal` fails | In the nested setup that name points inside Kiri's own network namespace | Linux nested: expected. **macOS: a real failure** (Xdebug won't connect). Record what `ddev exec getent hosts host.docker.internal` returns |
+
+| A released DDEV (v1.25.5) passes everything on released Kiri, though the repro shows #594 | v1.25.5 keeps the mkcert CA in the `ddev-global-cache` volume and never copies it into the container. Only DDEV main after v1.25.5 copies it with `docker cp` | Not a contradiction. The Linux "released DDEV" runs used v1.25.5-87 from main. Say which DDEV you ran |
+| `ls ~/Kiri` or `ls ~/"Kiri Ddev"` hangs; Kiri's e2e suite stalls in "container files in Finder" | macOS: the Finder NFS mount is present but nothing answers. Seen with engines started by hand with `kiri daemon` (2026-11-20) | Record it, and run the suite with that section disabled (see the plan, step 6) |
+| e2e `host-net` fails: wants `192.168.64.`, gets `192.168.65.x` | macOS: another Virtualization.framework VM already uses 192.168.64.0/24 | Environmental, on every Kiri build |
 
 ## Facts about Kiri that matter to DDEV
 
@@ -39,13 +45,30 @@ Platform-specific items are marked.
   `*.kiri.localhost` / `*.kiri.local` on 443. On a Mac the app holds host
   ports 80 and 443 when "domains" are on, and DDEV's router wants the same
   ports. Turn the domains off, or use the alternate router ports in the plan.
+  The released engine (`kiri daemon`) binds `*:80` and `*:443` even when
+  another provider (OrbStack) holds them on localhost. `KIRI_HTTP_PORT` and
+  `KIRI_HTTPS_PORT` move them. A dev flavor (`app-dev`) starts no routers.
+- **Running without the app (macOS):** `/Applications/Kiri.app/Contents/MacOS/kiri daemon`
+  serves `~/.kiri/run/docker.sock`; a dev flavor's binary serves
+  `~/.kiri-<flavor>/run/docker.sock`. Neither creates a docker context then:
+  `docker context create kiri --docker host=unix://$HOME/.kiri/run/docker.sock`.
+  `kiri version` is docker's `version`, and the Kiri version is the `Kiri`
+  component in `docker version` (a dev build says `0.0.0`). A released and a
+  dev engine run side by side without trouble.
+- **Building #595's guest on a Mac:** the fix is in the initramfs only. The
+  released app's `Contents/Resources/guest/Image` and `data.img.tgz` can stand
+  in for `cargo xtask kernel` / `disk`. `cargo xtask guest` needs the
+  `aarch64-unknown-linux-musl` Rust target and a Docker engine (the released
+  Kiri works).
 - **`host.docker.internal`:** built in. On a Mac, Kiri's documented host
   gateway is `198.19.248.254`. DDEV adds no `extra_hosts` on macOS for a
   generic provider, so Xdebug depends on Kiri's built-in name.
-- **Logs:** the guest console is in `~/.kiri/logs/guest-console.log`
-  (a dev build keeps its own state folder). Where the daemon's own log goes on
-  a Mac isn't documented clearly: look in `~/.kiri/logs/` and record what you find.
-  On Linux it's the daemon's stderr.
+- **Logs:** on a Mac, `~/.kiri/logs/` holds `daemon.log` (JSON lines),
+  `guest-console.log` and `cli.log`. A dev build started by hand logs to its
+  stderr instead. On Linux it's the daemon's stderr.
+- **Kiri's e2e suite** takes about 7–9 minutes per engine on an M1 once the
+  images are pulled. Run against a release, it fails dozens of checks for
+  features newer than the release; compare like with like.
 - **Kiri's e2e suite** (`tests/e2e.sh`) can't run a single section. It uses
   `DOCKER_CONTEXT` to choose the engine and derives a feature name from it (a
   context `kiri-ddev` is "Kiri Ddev", with a Finder folder `~/Kiri Ddev`). It
