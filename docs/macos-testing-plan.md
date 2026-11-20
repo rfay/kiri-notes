@@ -1,17 +1,20 @@
 # macOS testing plan (for a macOS agent)
 
-**Status: projected, not yet run.** Nothing here has been tried on a Mac. It's
-the plan for an agent on a Mac to repeat the Linux evaluation and report back.
-Adjust it where reality differs, and record every difference.
+**Status: run once,** on an M1 Mac with macOS 27.2.1 on 2026-11-20
+([results/macos-20261120-arm64.md](../results/macos-20261120-arm64.md)). The
+steps below include the corrections from that run. Adjust it where reality
+differs again, and record every difference.
 
 ## Goal
 
 Find out whether DDEV works with Kiri as its Docker provider on macOS, and
 provide the macOS evidence for [libracoder/kiri#595](https://github.com/libracoder/kiri/pull/595):
 
-1. **Baseline:** released Kiri with released DDEV. Expected to fail at
-   `ddev start` because of [libracoder/kiri#594](https://github.com/libracoder/kiri/issues/594),
-   unless a Kiri release includes #595.
+1. **Baseline:** released Kiri with released DDEV. DDEV v1.25.5 passes, because
+   it doesn't copy the mkcert CA into the container. DDEV main after v1.25.5
+   does, and fails at `ddev start` because of
+   [libracoder/kiri#594](https://github.com/libracoder/kiri/issues/594),
+   unless a Kiri release includes #595. Note which DDEV you're testing.
 2. **DDEV workaround:** released Kiri with DDEV built from
    [`rfay/ddev:20261120_rfay_kiri_ca_copyuidgid`](https://github.com/rfay/ddev/compare/main...rfay:ddev:20261120_rfay_kiri_ca_copyuidgid).
    Expected to work, including two projects at once.
@@ -42,13 +45,25 @@ provide the macOS evidence for [libracoder/kiri#595](https://github.com/libracod
 ## 0. Prerequisites
 
 ```bash
-brew install ddev/ddev/ddev mkcert go jq
+brew install mkcert go jq
 mkcert -install                       # once, if DDEV hasn't already done it
 git clone https://github.com/rfay/kiri-notes ~/kiri-test/kiri-notes
-mkdir -p ~/kiri-test/proj ~/kiri-test/ddev-config/ddev
+mkdir -p ~/kiri-test/proj ~/kiri-test/ddev-config/ddev ~/kiri-test/bin
 ```
 
+Released DDEV: if the Mac already has `ddev`, don't upgrade or replace it,
+since its owner uses it. Put the release you're testing in `~/kiri-test/bin`
+from the `macos-arm64` tarball on the DDEV releases page, and call it by its
+full path or with `PATH=~/kiri-test/bin:$PATH`. Run `ddev --version` before
+each test.
+
 The smoke test needs `jq`, `curl` and `python3` (Xcode Command Line Tools). Go is for building DDEV in step 4; Rust (`rustup`) is for building Kiri in step 5.
+If `rustup` and `cargo` shouldn't touch the Mac's own `~/.cargo`, set
+`CARGO_HOME` and `RUSTUP_HOME` to folders under `~/kiri-test`.
+
+On a shared or agent-run Mac, a scratch folder other than `~/kiri-test` is
+fine (the 2026-11-20 run used `~/tmp/<session>/kiri-test`). It must be under
+the home directory.
 
 Use paths under the home directory. Kiri shares Mac paths into its VM over
 virtiofs, so check where the default shares are before using another location.
@@ -64,6 +79,22 @@ Opening it the first time runs `kiri setup`, which creates the `kiri` docker
 context. The app may ask about `*.kiri.local` domains: **decline**, or turn
 them off later in Settings → Domains. With domains on, Kiri holds host ports
 80 and 443, which DDEV's router also wants.
+
+**Without the app (agent, or no one at the desktop):** opening the app shows
+dialogs and can ask for an administrator password. Run the engine directly
+instead, with Kiri's own routers moved off 80/443, and create the context
+yourself:
+
+```bash
+(KIRI_HTTP_PORT=38080 KIRI_HTTPS_PORT=38443 nohup /Applications/Kiri.app/Contents/MacOS/kiri daemon \
+  >> ~/kiri-test/kiri-daemon.log 2>&1 &)
+docker context create kiri --docker host=unix://$HOME/.kiri/run/docker.sock
+```
+
+Kiri's routers listen on all addresses at 80/443 by default, even next to
+another provider (OrbStack) that already holds those ports. `KIRI_HTTP_PORT`
+and `KIRI_HTTPS_PORT` move them. Kiri's own logs are in `~/.kiri/logs/`
+(`daemon.log`, `guest-console.log`, `cli.log`).
 
 ```bash
 docker context ls
@@ -94,7 +125,8 @@ export DOCKER_CONTEXT=kiri DDEV_XDG_CONFIG_HOME=~/kiri-test/ddev-config
 scripts/repro-archive-owners.sh kiri
 ```
 
-- `0 0 600` and `Permission denied`: bug #594 is present, so expect `ddev start` to fail.
+- `0 0 600` and `Permission denied`: bug #594 is present, so expect `ddev start`
+  to fail with DDEV main after v1.25.5. v1.25.5 itself passes (see the Goal).
 - `1234 1235 600` and `key`: a release has the fix. Note it, skip the Kiri
   build in step 5, and use `kiri` wherever this plan says `kiri-ddev`.
 
@@ -102,9 +134,19 @@ scripts/repro-archive-owners.sh kiri
 scripts/ddev-smoke-test.sh ~/kiri-test/proj/baseline kiribase
 ```
 
-With #594 present, expect `FAIL ddev start`, with the web container exiting on
+With #594 present and a DDEV that copies the CA (main after v1.25.5), expect
+`FAIL ddev start`, with the web container exiting on
 `failed to read the CA key … permission denied`. Record that output and
-`ddev logs -s web | tail -30`, then `ddev delete -Oy kiribase`.
+`ddev logs -s web | tail -30`, then `ddev delete -Oy kiribase`. With v1.25.5,
+expect every check to pass.
+
+Also start a second project with released DDEV while `kiribase` runs, to
+record problem 5 on the released Kiri (`FAIL ddev start`, `Kiri cannot
+disconnect a container from its first network (ddev_default)`).
+
+Between steps, free the alternate ports by stopping Kiri's DDEV router, scoped
+to Kiri: `DOCKER_CONTEXT=kiri DDEV_XDG_CONFIG_HOME=~/kiri-test/ddev-config ddev poweroff`.
+Never run it without both variables.
 
 ## 4. Released Kiri with the DDEV workaround branch
 
@@ -142,13 +184,30 @@ for the kernel, disk and guest builds; the installed Kiri can be that engine.
 git clone https://github.com/rfay/kiri ~/kiri-test/kiri
 cd ~/kiri-test/kiri && git checkout 20261119_rfay_archive_keep_owners && git log -1 --oneline   # 251697c
 export DOCKER_CONTEXT=kiri
-cargo xtask kernel        # guest/out/Image
-cargo xtask disk          # guest/out/data.img
+rustup target add aarch64-unknown-linux-musl
+# The fix is only in the initramfs (kiri-init). The released kernel and disk
+# are the same, and building them takes a long time, so reuse the app's:
+mkdir -p guest/out
+cp /Applications/Kiri.app/Contents/Resources/guest/Image guest/out/
+tar -xzf /Applications/Kiri.app/Contents/Resources/guest/data.img.tgz -C guest/out   # data.img, sparse
+# (or build them: cargo xtask kernel; cargo xtask disk)
 cargo xtask guest         # guest/out/initramfs.cpio; this is where the fix lives (kiri-init)
 cargo xtask app-dev ddev  # target/dev/Kiri Ddev.app: a second Kiri with its own engine
 open "target/dev/Kiri Ddev.app"
 docker context ls         # find the new Kiri's context; e2e.sh's naming suggests kiri-ddev
 ```
+
+Without the app, as in step 1:
+
+```bash
+nohup "target/dev/Kiri Ddev.app/Contents/MacOS/kiri" daemon > ~/kiri-test/kiri-ddev-daemon.log 2>&1 &
+docker context create kiri-ddev --docker host=unix://$HOME/.kiri-ddev/run/docker.sock
+```
+
+The dev flavor keeps its state in `~/.kiri-ddev` and starts no
+`*.kiri.localhost` routers, so it doesn't need the port variables. On an M1
+with 8 GiB, `cargo xtask guest` took 6 minutes and `app-dev` 7, from a clean
+checkout. Both engines ran at the same time without trouble.
 
 On an Intel Mac, add `--arch x86_64` to `kernel`, `guest` and `app-dev`.
 `app-dev` builds with the fast profile, so it's a little slower than a release
@@ -184,11 +243,37 @@ DOCKER_CONTEXT=kiri      tests/e2e.sh 2>&1 | tee ~/kiri-test/e2e-released.log
 grep -E 'FAIL|cp-in-|^== docker cp|passed|failed' ~/kiri-test/e2e-fixed.log | tail -30
 ```
 
+On the 2026-11-20 run, the Finder mounts (`~/Kiri`, `~/Kiri Ddev`) were
+mounted but every access hung, with engines started by hand as above. The
+suite then stalled in its Finder section for more than 20 minutes and never
+finished. If `perl -e 'alarm 10; exec @ARGV' ls ~/"Kiri Ddev"` times out,
+record it and run a copy of the suite with that section disabled:
+
+```bash
+s=$(grep -n '^section "container files in Finder' tests/e2e.sh | cut -d: -f1)
+e=$(grep -n '^section "volumes and bind mounts"' tests/e2e.sh | cut -d: -f1)
+awk -v s=$s -v e=$((e-1)) 'NR==s{print "if false; then"} {print} NR==e{print "fi"}' tests/e2e.sh > tests/e2e-nofinder.sh
+chmod +x tests/e2e-nofinder.sh
+```
+
+An interrupted run leaves its containers behind (the cleanup trap doesn't
+run). On a dev engine that only the suite uses, remove them before the rerun:
+its container names would collide.
+
 Expected:
 - `cp-in-keeps-owner` passes on `kiri-ddev` and fails on the released `kiri`.
 - No other check fails on `kiri-ddev` that also passes on the released Kiri.
   Some checks may fail on both (environment, Finder, domains, Kubernetes …).
   List those, but they don't count against the PR.
+- The released Kiri fails many more checks than the fixed one (68 against 1
+  on 2026-11-20). The suite comes from the PR branch, which is based on a main
+  newer than the release, so it tests features 0.2.2 doesn't have. Compare
+  `cp-in-keeps-owner` and look for checks that fail only on the fixed build;
+  don't read the released total as a regression list.
+- `host-net` expects the VM's address to start with `192.168.64.`. On a Mac
+  where other Virtualization.framework VMs (OrbStack, Lima, Apple's container)
+  already use that subnet, Kiri gets `192.168.65.x`, and the check fails on
+  both engines. That's environmental.
 
 Put a short summary in the results file under **"For libracoder/kiri#595"**,
 written so it can be pasted as a PR comment: macOS version, chip, the PR
@@ -209,14 +294,22 @@ PERFORMANCE_MODE=mutagen scripts/ddev-smoke-test.sh ~/kiri-test/proj/mutagen kir
 
 Expected: `kirinone` passes everything. `kirimutagen`, started while
 `kirinone` is running, is expected to `FAIL ddev start` with
-`failed to update router network aliases … Kiri cannot disconnect a running
-container from its first network`. Record it. Then:
+`failed to update router network aliases … Kiri cannot disconnect a container
+from its first network (ddev_default)` (the macOS wording on Kiri 0.2.2). Record it. Then:
 
 ```bash
-ddev stop kirinone
+ddev stop kirinone kirimutagen
+ddev poweroff      # with DOCKER_CONTEXT=kiri-ddev and DDEV_XDG_CONFIG_HOME set: removes Kiri's router
 PERFORMANCE_MODE=mutagen scripts/ddev-smoke-test.sh ~/kiri-test/proj/mutagen kirimutagen
-ddev stop kirimutagen && ddev start kirinone
+ddev stop kirimutagen && ddev poweroff && ddev start kirinone
 ```
+
+`ddev stop kirinone` alone isn't enough (2026-11-20): the failed `kirimutagen`
+start leaves that project's containers running, and the router outlives
+stopped projects. Any start that adds hostnames to a running router then hits
+problem 5 again, even with no other project running. Only removing the router
+(a scoped `ddev poweroff`) clears it. Released DDEV's `ddev restart` of the
+same project is fine, since its hostnames don't change.
 
 `ROUTER_IP` defaults to `127.0.0.1`, which is right on a Mac if Kiri forwards
 published ports to localhost.
@@ -238,7 +331,8 @@ project running at a time, and record the output of each:
 
 1. **Xdebug end to end:** `ddev xdebug on`, then
    `ddev exec 'php -r "var_dump(ini_get(\"xdebug.client_host\"));"'`. Listen on
-   9003 on the Mac (`nc -l 9003`) and run `ddev exec 'XDEBUG_SESSION=1 php -r "echo 1;"'`.
+   9003 on the Mac on 0.0.0.0 (a small Python `socket` listener worked;
+   `nc -l 9003` received nothing on 2026-11-20) and run `ddev exec 'XDEBUG_SESSION=1 php -r "echo 1;"'`.
    A connection should arrive.
 2. **File speed**, compared with the normal provider if possible:
    `time ddev composer create-project drupal/recommended-project:^11 --no-interaction`
@@ -246,14 +340,20 @@ project running at a time, and record the output of each:
 3. **A real CMS:** that Drupal project, then
    `ddev drush si -y --account-pass=admin` and `curl` its front page through the
    router (expect `200`). Optionally a WordPress quickstart too.
-4. **amd64 image through Rosetta:** a project with `ddev config --database=mysql:5.7`
-   (no arm64 image). On Apple silicon it should start, slowly. Record the time.
+4. **amd64 image through Rosetta:** DDEV's `mysql:5.7` image has an arm64
+   build now (2026-11-20: `@@version_compile_machine` was `aarch64`), so a
+   `--database=mysql:5.7` project is worth timing but doesn't exercise Rosetta.
+   For Rosetta, run `docker run --rm --platform linux/amd64 alpine uname -m`
+   (expect `x86_64`), and check the `rosetta-*` lines of the e2e run.
 5. **Idle VM sleep:** Kiri's VM sleeps after 60 s idle. With a project running,
    wait 3 minutes, then `curl` the site and `ddev exec true`. Does the project still
    answer, and how long does the first request take?
 6. **SSH agent:** `ddev auth ssh`, then `ddev exec ssh-add -l` lists your keys.
    Kiri forwards the agent at `/run/host-services/ssh-auth.sock`.
-7. **Restart of Kiri itself:** quit and reopen Kiri, then `ddev start` the
+7. **Restart of Kiri itself:** quit and reopen Kiri (or, with an engine
+   started by hand, `kill` it and start it again: if it logs
+   `engine shutting down` but keeps running, look for a process stuck on the
+   Finder mount, since shutdown waits on `umount -f`), then `ddev start` the
    project again. Record whether the project comes back and how long Kiri
    takes to answer `docker ps` after reopening.
 8. **Optional, DDEV's own tests:** in a `ddev/ddev` checkout,
