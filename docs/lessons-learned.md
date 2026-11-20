@@ -1,0 +1,84 @@
+# Lessons learned (read before testing)
+
+What the Linux evaluation (2026-11-19/20) found the hard way, so the next run
+doesn't have to rediscover it. Each item says what you'll see and what it means.
+Platform-specific items are marked.
+
+## Reading failures
+
+| What you see | What it is | What to do |
+|---|---|---|
+| `ddev start` builds and starts containers, then `Failed waiting for web/db containers… web container exited`; `ddev logs -s web` ends with `mkcert -install` / `ERROR: failed to read the CA key: open /usr/local/lib/ddev/mkcert/rootCA-key.pem: permission denied` | Kiri bug #594: files copied into a container become root's | Expected on Kiri without #595. Use the fixed Kiri or the DDEV workaround branch |
+| `ddev-router already running, pushing new config...` then `failed to update router network aliases: failed to disconnect container … Kiri cannot disconnect a running container from its first network (ddev_default); stop the container first` | Problem 5: Kiri refuses `network disconnect` on a running container's first network | Expected when a second project starts while one runs, with released DDEV. Stop the other projects, or use the DDEV workaround branch (it recreates the router instead) |
+| `ddev-router is running, but nothing answers on host port(s) …` | DDEV checks the ports on the host's localhost | Linux nested: expected, because the ports are on the engine container's IP. **macOS: a real failure**, meaning Kiri isn't forwarding the ports to localhost. Record it |
+| `kiri: cannot start container: mount: mknod dev/null: Operation not permitted`, `ulimits: error setting rlimit type 7`, or `stdio: No such file or directory` | Problems 2 and 3: Kiri itself is running inside a user namespace | Linux nested only. Not expected on a Mac, where Kiri has its own VM |
+| `VM did not boot: File exists (os error 17)` after restarting a Linux engine container | Leftover `/run/kiri-agent-<pid>-<n>` directories in a persistent `/run` | Linux nested only, and fixed in `scripts/run-kiri-engine.sh` (`--tmpfs /run`) |
+| `web container reaches host via host.docker.internal` fails | In the nested setup that name points inside Kiri's own network namespace | Linux nested: expected. **macOS: a real failure** (Xdebug won't connect). Record what `ddev exec getent hosts host.docker.internal` returns |
+
+## Facts about Kiri that matter to DDEV
+
+- **Identity:** `docker info` says `OperatingSystem: Kiri`, `Name: kiri`,
+  `Runtimes: kiri`. `docker version` says `Platform.Name: Kiri`, Engine `27.5.1`,
+  API `1.47`, plus a `Kiri` component with the real version. DDEV has no
+  `IsKiri()`, so it treats Kiri as generic Docker.
+- **Builds:** for a non-Docker-Desktop context, buildx creates
+  `buildx_buildkit_default` (a privileged `moby/buildkit` container, restart
+  policy `unless-stopped`) on the first build. The first `ddev start` then takes
+  about 35 s longer while it pulls and boots; later builds take under 5 s.
+  Leave that container alone. Kiri brings it back when the engine restarts.
+- **`docker cp` / archive uploads:** Docker keeps the uid/gid from the tar
+  headers **even without `-a`**, whatever its docs suggest; `-a`
+  (`copyUIDGID`) gives the files to the container's user instead. Kiri
+  without #595 makes root the owner unless `copyUIDGID` is set, and when it
+  is set, Kiri keeps the tar's owners. The DDEV workaround branch relies on
+  that.
+- **Networks:** a *stopped* container can leave its first network (Kiri
+  #418/#584). A *running* one can't (problem 5). Other networks connect and
+  disconnect normally.
+- **Ports Kiri claims for itself:** the engine serves HTTPS for
+  `*.kiri.localhost` / `*.kiri.local` on 443. On a Mac the app holds host
+  ports 80 and 443 when "domains" are on, and DDEV's router wants the same
+  ports. Turn the domains off, or use the alternate router ports in the plan.
+- **`host.docker.internal`:** built in. On a Mac, Kiri's documented host
+  gateway is `198.19.248.254`. DDEV adds no `extra_hosts` on macOS for a
+  generic provider, so Xdebug depends on Kiri's built-in name.
+- **Logs:** the guest console is in `~/.kiri/logs/guest-console.log`
+  (a dev build keeps its own state folder). Where the daemon's own log goes on
+  a Mac isn't documented clearly: look in `~/.kiri/logs/` and record what you find.
+  On Linux it's the daemon's stderr.
+- **Kiri's e2e suite** (`tests/e2e.sh`) can't run a single section. It uses
+  `DOCKER_CONTEXT` to choose the engine and derives a feature name from it (a
+  context `kiri-ddev` is "Kiri Ddev", with a Finder folder `~/Kiri Ddev`). It
+  needs `perl`, `python3` and `curl`, and only removes what it created.
+- **Kiri's own rustfmt/clippy** report findings on main with a current
+  toolchain. Compare a branch against main, not against zero.
+
+## DDEV tooling details
+
+- Every command against Kiri needs `DOCKER_CONTEXT` **and** a DDEV global
+  config of its own (`DDEV_XDG_CONFIG_HOME`); otherwise DDEV's project list
+  and router settings mix with the normal provider's. With both a normal
+  `~/.ddev` and a custom one, DDEV prints
+  `Warning: multiple global DDEV configurations found … is in use`. That's
+  expected; ignore it.
+- `ddev config global` has flags for the router, Mailpit and Traefik monitor
+  ports, but **not for XHGui**. Edit `global_config.yaml` for those if needed.
+- `ddev describe -j | jq '.raw'` gives `router_http_port`,
+  `router_https_port` and `mailpit_url`. The smoke test uses them.
+- `make` in a ddev checkout writes to `.gotmp/bin/<os>_<arch>/ddev`. If that
+  directory is already on `PATH`, the new build shadows the installed `ddev`
+  without your noticing. Run `ddev --version` before each test and record it.
+  (One Linux "control" run accidentally used the workaround build this way.)
+- `ddev delete -Oy <name>` needs the same `DOCKER_CONTEXT` and
+  `DDEV_XDG_CONFIG_HOME` as the project was started with.
+
+## Process
+
+- Sessions working from this repository can't post to `libracoder/kiri`
+  (it isn't attached, and attaching it was refused). Write anything meant for
+  upstream into the results file; a person posts it with their own `gh`.
+- Kiri requires signed commits and a CLA. Commits for Kiri are authored as
+  Randy Fay and signed with his SSH key, which only he can do (through a
+  forwarded agent). Don't amend or force-push the Kiri branches.
+- Kiri's CONTRIBUTING wants an issue, and agreement, before any non-trivial PR,
+  before/after output from a real machine, and AI use disclosed in the PR template.

@@ -54,6 +54,7 @@ ROUTER_IP=<engine IP printed above> scripts/ddev-smoke-test.sh ~/kiri-test/proj/
 ## Layout
 
 - [TODO.md](TODO.md): next steps, including the not-yet-filed issue for problem 5
+- [docs/lessons-learned.md](docs/lessons-learned.md): read this before testing. Known failures and what they mean, and Kiri and DDEV details that cost time
 - [docs/kiri-fixes.md](docs/kiri-fixes.md): each problem, its cause in Kiri's code, the fix, and how it was verified
 - [docs/linux-nested-setup.md](docs/linux-nested-setup.md): the Linux setup used, step by step, and results
 - [docs/macos-testing-plan.md](docs/macos-testing-plan.md): instructions for a macOS agent to repeat the evaluation

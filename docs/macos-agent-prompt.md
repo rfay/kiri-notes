@@ -9,8 +9,12 @@ Evaluate Kiri (https://github.com/libracoder/kiri), a small Docker-API-compatibl
 container runtime, as a Docker provider for DDEV on this Mac, following the plan in
 the rfay/kiri-notes repository.
 
-1. Clone https://github.com/rfay/kiri-notes to ~/kiri-test/kiri-notes and read
-   README.md, docs/kiri-fixes.md and docs/macos-testing-plan.md before doing anything.
+1. Clone https://github.com/rfay/kiri-notes to ~/kiri-test/kiri-notes and read,
+   in this order, before doing anything: docs/lessons-learned.md (what earlier
+   testing already found, including how to read each expected failure),
+   README.md, docs/kiri-fixes.md and docs/macos-testing-plan.md. Don't
+   re-investigate anything lessons-learned.md already explains. If you see one
+   of its known failures, record it and move on.
 2. Follow docs/macos-testing-plan.md step by step. Its "Ground rules" are binding:
    - don't change the default docker context;
    - don't touch the Mac's existing Docker provider or its DDEV projects;
@@ -20,7 +24,8 @@ the rfay/kiri-notes repository.
 3. Ask me before installing anything not listed in the plan's prerequisites, and
    before anything that needs sudo or an administrator password.
 4. Where the plan is wrong for this Mac (a command, a context name, a path),
-   adapt it, keep going, and record the change.
+   adapt it, keep going, and record the change. If you learn something the next
+   tester would otherwise have to rediscover, add it to docs/lessons-learned.md.
 5. Write the results to results/macos-<YYYYMMDD>-<arch>.md as the plan's
    "What to report" section describes. Include the "For libracoder/kiri#595"
    summary written so it can be pasted as a PR comment. Commit it with a plain
