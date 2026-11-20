@@ -1,6 +1,32 @@
 # DDEV-side notes
 
-Nothing in DDEV has been changed for Kiri. These are candidates, not decisions.
+## Workaround branch (tested)
+
+[`rfay/ddev:20261120_rfay_kiri_ca_copyuidgid`](https://github.com/rfay/ddev/compare/main...rfay:ddev:20261120_rfay_kiri_ca_copyuidgid)
+(one commit, `794c0a4ae`, on DDEV main `571f19aee`; no PR yet) makes DDEV
+work on Kiri releases without either Kiri fix:
+
+1. **CA copy with `copyUIDGID`** (`pkg/ddevapp/caroot.go`, new
+   `dockerutil.CopyArchiveToContainerAsUser`). Kiri keeps the archive's owners
+   when `copyUIDGID` is set, and Docker gives the files to the container's
+   configured user. The web container's user is `$DDEV_UID:$DDEV_GID`, the same
+   owner DDEV writes into the tar, so on Docker nothing changes.
+2. **Router alias fallback** (`pkg/ddevapp/router.go`). If updating the
+   running router's network aliases in place fails, the router is recreated,
+   as before the in-place update was added.
+
+Tested:
+
+| Engine | Result |
+|---|---|
+| Kiri (nested Linux) without #595, old DDEV | web container exits: `failed to read the CA key` (control) |
+| Kiri (nested Linux) without #595, this branch | two projects at once; smoke test 17/18 on each (the one failure is the nesting-only host check); the second start recreated the router |
+| Docker 29.9.3, this branch, router already running for other projects | CA files `1000:1000` in web; both projects answer over HTTPS; router updated in place, not recreated (still the container from two days earlier) |
+
+`golangci-lint` on `pkg/ddevapp` and `pkg/dockerutil` reports 0 issues. DDEV's
+own test suite wasn't run (it needs the workspace-wide Docker lock and
+`ddev poweroff`). Not tried with Podman, Colima, OrbStack, Rancher Desktop or
+Docker Desktop.
 
 ## Provider detection
 
@@ -22,19 +48,12 @@ relying on the engine's built-in name. Kiri claims both:
 bridge's gateway on Linux and `198.19.248.254` on a Mac. This needs checking on
 a Mac and on a normal Linux install (the smoke test's host-reachability check).
 
-## A possible DDEV workaround for the copy-in ownership bug (unverified)
+## Before proposing the branch upstream
 
-Until a Kiri release includes [#595](https://github.com/libracoder/kiri/pull/595),
-DDEV could pass `CopyUIDGID: true` in `dockerutil.CopyArchiveToContainer`
-(`client.CopyToContainerOptions`) for the CA copy:
-
-- Kiri keeps the archive's owners when `copyUIDGID` is set, which is what DDEV wants.
-- Docker then gives the files to the container's user. The web container's user is the
-  host uid:gid, the same owner DDEV writes into the tar, so the result should be the same.
-
-This hasn't been tried on Docker, Podman or other providers, and
-`copyUIDGID` behaviour varies by engine, so it's only worth doing if Kiri
-users show up before #595 ships.
+- Run it on the other providers DDEV supports. Podman's `copyUIDGID` handling
+  is the main unknown, especially rootless with keep-id.
+- Decide whether the router fallback is wanted generally. It's cheap: an engine
+  that supports the in-place update never reaches it.
 
 ## Router ports on a Mac
 

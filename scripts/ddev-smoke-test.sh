@@ -9,6 +9,7 @@
 #   ROUTER_IP             where the router's ports are reachable (default 127.0.0.1;
 #                         the engine container's IP in the nested Linux setup)
 #   PERFORMANCE_MODE      none or mutagen (default: DDEV's default for the OS)
+# Needs jq, curl and python3 (for a throwaway HTTP server on the host).
 # Prints PASS/FAIL per check and a summary; leaves the project running.
 set -u
 DIR=$1; NAME=${2:-kirismoke}; IP=${ROUTER_IP:-127.0.0.1}
@@ -24,7 +25,7 @@ ddev config --project-name="$NAME" --docroot=web --project-type=php ${PERFORMANC
 START=$(date +%s)
 if ddev start -y > ddev-start.log 2>&1; then ok "ddev start ($(( $(date +%s) - START ))s)"; else bad "ddev start" "see $DIR/ddev-start.log"; tail -20 ddev-start.log; exit 1; fi
 
-HTTP=$(ddev describe -j | python3 -c 'import json,sys; r=json.load(sys.stdin)["raw"]; print(r.get("router_http_port","80"), r.get("router_https_port","443"), r.get("mailpit_url",""))')
+HTTP=$(ddev describe -j | jq -r '.raw | "\(.router_http_port // "80") \(.router_https_port // "443") \(.mailpit_url // "")"')
 read -r HP SP MP <<<"$HTTP"
 H="$NAME.ddev.site"
 CA="$(mkcert -CAROOT 2>/dev/null)/rootCA.pem"

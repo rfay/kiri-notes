@@ -101,6 +101,20 @@ BuildKit (`buildx_buildkit_default`, a privileged container that Kiri runs),
 about 35 s cold and under 5 s cached. A stop/start cycle took about 12 s.
 `ddev-ssh-agent` relays to the mounted agent socket.
 
+## Two projects at once
+
+Starting a second project while the first runs fails with released DDEV,
+because Kiri refuses to disconnect the running router from `ddev_default`
+(problem 5 in [kiri-fixes.md](kiri-fixes.md)). With DDEV built from
+[`rfay/ddev:20261120_rfay_kiri_ca_copyuidgid`](https://github.com/rfay/ddev/compare/main...rfay:ddev:20261120_rfay_kiri_ca_copyuidgid),
+the router is recreated instead. Two projects then ran at once, with 17 of 18
+checks passing on each, on a Kiri **without** the ownership fix:
+
+```bash
+PATH=<ddev checkout>/.gotmp/bin/linux_amd64:$PATH ROUTER_IP=172.17.0.3 scripts/ddev-smoke-test.sh ~/kiri-test/proj/wa wa
+PATH=<ddev checkout>/.gotmp/bin/linux_amd64:$PATH ROUTER_IP=172.17.0.3 scripts/ddev-smoke-test.sh ~/kiri-test/proj/wb wb
+```
+
 ## Cleanup
 
 ```bash

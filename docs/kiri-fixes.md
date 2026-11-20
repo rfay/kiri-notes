@@ -82,15 +82,66 @@ affected because the guest sets limits there).
 Giving the engine container `--ulimit nofile=1048576:1048576` didn't help,
 because the outer Docker can't exceed its own limit either.
 
-## 4. Engine container restart (not reported)
+## 4. Engine container restart: setup problem, not a Kiri bug
 
 In the nested setup, `docker stop` and then `docker start` of the engine
-container makes every `docker run` fail with `VM did not boot: File exists (os error 17)`
-(engine log: `ERROR VM did not boot error=File exists (os error 17)`).
-Removing and recreating the container (keeping the same data volumes) works.
-It's probably about the agent's cgroup or lock state under `--cgroupns private`,
-but it hasn't been investigated. `scripts/run-kiri-engine.sh` always creates a
-fresh container to avoid it.
+container made `docker run` fail with `VM did not boot: File exists (os error 17)`,
+sometimes for a run or two, sometimes until the container was recreated.
+
+**Cause.** On Linux the daemon starts its agent with a private runtime
+directory, `/run/kiri-agent-<daemon pid>-<n>` (`crates/kiri-vmm/src/process.rs`,
+`runtime_directory`), and creates it exclusively, so an existing entry fails
+the start instead of being trusted. A daemon that's killed leaves those
+directories behind. The first engine container had a persistent `/run` (only
+`/tmp` was a tmpfs), and inside a container the daemon often gets the same PID
+(38 here) after a restart. So the new daemon tried to create a directory that
+already existed. After a restart the engine container held
+`/run/kiri-agent-38-0`, `-38-1`, `-38-2` and `-41-1`.
+
+**Fix.** Mount a tmpfs on `/run`, as Kiri's own `tests/linux-host.sh` does.
+`scripts/run-kiri-engine.sh` now does that, and three stop/start cycles in a
+row then worked. The entrypoint also removes a stale socket before starting
+the daemon. Before that, the `chmod` that opens the socket to the host user
+could hit the old socket and leave the new one root-only.
+
+On a normal host `/run` is cleared at boot, and a restarted daemon rarely gets
+the same PID, so this is unlikely to affect normal installs. It only affects a
+daemon that runs in a container with a persistent `/run`. Kiri could remove
+its leftover `kiri-agent-*` directories when it starts, but this isn't worth
+an upstream issue on its own.
+
+## 5. Running container can't leave its first network: breaks a second project
+
+- Upstream: not reported yet. libracoder/kiri#418 (fixed by #584) let a *stopped* container leave its first network; a running one is still refused.
+- DDEV workaround: [`rfay/ddev:20261120_rfay_kiri_ca_copyuidgid`](https://github.com/rfay/ddev/compare/main...rfay:ddev:20261120_rfay_kiri_ca_copyuidgid)
+
+**Symptom.** The first project starts. Starting a second while the first is
+running fails:
+
+```text
+ddev-router already running, pushing new config...
+Failed to start kiritest-01UrTUMv: failed to update router network aliases: failed to disconnect
+container 340d2de2… from network ddev_default: Error response from daemon: Kiri cannot disconnect a
+running container from its first network (ddev_default); stop the container first
+```
+
+**Why.** When a project adds hostnames, DDEV updates the running router's
+network aliases in place, by disconnecting it from `ddev_default` and
+connecting it again with the new aliases
+(`pkg/ddevapp/router.go`, `dockerutil.UpdateContainerNetworkAliases`). Docker
+allows this on a running container. Kiri refuses it on purpose
+(`crates/kiri/src/daemon/engine.rs`, `disconnect`): a container's first
+network holds its default route, its main address (which published ports go
+to) and its resolver, and moving those while it runs "needs the guest to do
+more than unplug it".
+
+**Options.**
+- In Kiri: allow disconnect and reconnect of a running container's first
+  network, at least when the same container is reconnected to the same network
+  straight away (the alias-update pattern), or support changing aliases
+  without a disconnect. That is a bigger change than #595, so an issue first.
+- In DDEV (done on the branch above, and tested): if the in-place update
+  fails, recreate the router as DDEV did before the in-place update existed.
 
 ## Upstream etiquette (from Kiri's CONTRIBUTING.md and PR template)
 
