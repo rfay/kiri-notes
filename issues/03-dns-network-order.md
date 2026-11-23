@@ -71,6 +71,9 @@ projects' databases, and `mysql -h db` from the second project connected to
 the **first** project's database. On Docker (OrbStack, same Mac) each project
 reaches only its own. So on Kiri, writes can silently go to the wrong
 project's database. The repro above doesn't involve DDEV or Compose.
+DDEV is also making its setup independent of the order
+(ddev/ddev#9172), but other Compose projects with a shared network will hit
+the same thing.
 
 ### Suggested fix
 
