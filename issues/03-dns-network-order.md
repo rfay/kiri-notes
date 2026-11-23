@@ -80,4 +80,4 @@ Resolve over a container's networks in the same order Docker uses (by network
 name), returning all matches from the first network that has the name.
 
 ---
-Investigated and written up with help from Claude Code; the repros above were run on a real Mac and the outputs pasted as they came.
+Investigated and written up with help from Claude Code; the repros above were run on a real Mac and the outputs are copied from those runs (long ids shortened).
