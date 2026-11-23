@@ -78,3 +78,6 @@ projects with a shared network will hit the same thing.
 
 Resolve over a container's networks in the same order Docker uses (by network
 name), returning all matches from the first network that has the name.
+
+---
+Investigated and written up with help from Claude Code; the repros above were run on a real Mac and the outputs pasted as they came.

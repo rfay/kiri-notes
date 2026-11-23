@@ -63,3 +63,6 @@ removal always sets `Force: true` and relies on the in-use refusal to stop and
 tell the user which containers hold the volume; on Kiri the volume is removed
 instead. Found while testing DDEV on Kiri (ddev/ddev#9167); the repro above
 doesn't involve DDEV.
+
+---
+Investigated and written up with help from Claude Code; the repros above were run on a real Mac and the outputs pasted as they came.
