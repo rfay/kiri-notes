@@ -182,10 +182,16 @@ On OrbStack, two DDEV projects running at once each reach only their own
 `db` (`mysql -h db` → `odns1-db` and `odns2-db`); on Kiri the second reached
 the first's.
 
-**Fix (in Kiri).** Resolve in Docker's order (by network name). Worth a
-thought on the DDEV side too: relying on `-` sorting before `_` is fragile,
-and a DDEV-only alias that doesn't clash would be more robust, but that's
-not needed for Docker today.
+**Fix (in Kiri).** Resolve in Docker's order (by network name).
+
+**Fix (in DDEV), which makes Kiri's order harmless:**
+[ddev/ddev#9172](https://github.com/ddev/ddev/issues/9172) (history and
+findings) asks for ddev/ddev#8995: `use_service_name_alias: false` on
+`ddev_default`, so `db` doesn't exist there. Compose v5.8.0, which DDEV
+vendors, supports it. Tried on 2026-11-23 in a scratch build (#9167 plus
+#8995's change): on Kiri each of two projects reaches its own `db`, and with
+one project's db stopped `db` doesn't resolve (on OrbStack too, which also
+fixes ddev/ddev#8390).
 
 ## 7. `volume rm --force` removes a volume that a container uses
 
