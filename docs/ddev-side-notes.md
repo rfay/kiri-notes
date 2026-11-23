@@ -48,6 +48,29 @@ A third commit fixes `TestConfigValidate`, which requested
 `http://x.ddev.site/` (port 80) whatever the router port was; it fails on any
 provider run with 8080/8443 (rootless Podman, socktainer, Kiri on macOS).
 
+Later commits:
+
+- febdd83: on Kiri, `TestRouterNotRebuiltOnHostnameChange` skips, and
+  `TestRouterPortSubstitutionPersistsAcrossProjects` accepts a recreated
+  router. It still checks that the substitute ports survive, and they do.
+- 10c275d09: CI's Docker rootless job failed `TestWebCAROOTCopied` (CA owned
+  by `0`, test expected the runner's uid `1001`). With `copyUIDGID` the CA
+  belongs to the web container's configured user, which is `0:0` on Docker
+  rootless with bind mounts (the host user is root in that user namespace).
+  That's the right owner; the test now compares with the web container's
+  `Config.User`. Passes on OrbStack; needs a CI rerun to confirm rootless.
+
+Related DDEV PRs from the same work, none Kiri-specific:
+
+- [ddev/ddev#9171](https://github.com/ddev/ddev/pull/9171): PostgreSQL 15–17
+  snapshot restore on macOS (below).
+- [ddev/ddev#9173](https://github.com/ddev/ddev/pull/9173): no service-name
+  aliases on `ddev_default` (#8995), which makes short names project-local on
+  any engine; see problem 6 and [ddev/ddev#9172](https://github.com/ddev/ddev/issues/9172).
+- [ddev/ddev#9176](https://github.com/ddev/ddev/pull/9176):
+  `PostgresDefaultVersion` 14 → 18. It's only the prompt's first offer, but
+  most PostgreSQL tests run it, which is why 15–17 regressions went untested.
+
 ## Found by running DDEV's tests on Kiri, not Kiri problems
 
 - **PostgreSQL 15–17 snapshot restore on macOS: a DDEV bug, not Kiri's.**

@@ -4,7 +4,10 @@ Code references are to `libracoder/kiri` main at `d80976c` (Kiri 0.2.2 plus a fe
 
 ## 1. Copy-in drops the archive's owners: breaks DDEV everywhere
 
-- Upstream: issue [libracoder/kiri#594](https://github.com/libracoder/kiri/issues/594), PR [libracoder/kiri#595](https://github.com/libracoder/kiri/pull/595)
+- Upstream: issue [libracoder/kiri#594](https://github.com/libracoder/kiri/issues/594), PR [libracoder/kiri#595](https://github.com/libracoder/kiri/pull/595) (closed unmerged).
+  **Fixed on Kiri main by #772** on 2026-11-23: it carries #595 (Randy kept
+  as co-author) and adds Docker's `copyUIDGID` / `Config.User` behavior. The
+  maintainer says it's for 0.2.3.
 - Branch: [`rfay/kiri:20261119_rfay_archive_keep_owners`](https://github.com/rfay/kiri/tree/20261119_rfay_archive_keep_owners) (signed, one commit)
 
 **Symptom in DDEV.** `ddev start` builds the images and starts the containers,
@@ -194,13 +197,22 @@ findings) asks for ddev/ddev#8995: `use_service_name_alias: false` on
 vendors, supports it. Tried on 2026-11-23 in a scratch build (#9167 plus
 #8995's change): on Kiri each of two projects reaches its own `db`, and with
 one project's db stopped `db` doesn't resolve (on OrbStack too, which also
-fixes ddev/ddev#8390).
+fixes ddev/ddev#8390). Implemented in draft PR
+[ddev/ddev#9173](https://github.com/ddev/ddev/pull/9173); its
+`TestNetworkAmbiguity` addition fails without the change on OrbStack.
 
 ## 7. `volume rm --force` removes a volume that a container uses
 
 - Upstream: [libracoder/kiri#773](https://github.com/libracoder/kiri/issues/773)
   (filed 2026-11-23); still on main 099f22c (`engine.rs`, `volume_remove`:
-  the in-use check is skipped when `force` is set). Draft in
+  the in-use check is skipped when `force` is set).
+- Fix: draft PR [libracoder/kiri#781](https://github.com/libracoder/kiri/pull/781)
+  (`rfay:20261123_volume_rm_force_in_use`, one commit, signed by Randy). The
+  in-use refusal no longer depends on `force`; `force` still overrides the
+  damaged-list refusal. Its unit test fails without the change. The full
+  `cargo test --workspace --exclude kiri-init` passes, and clippy and fmt
+  report the same as main (in a `rust:1` container). Not yet run as a built
+  engine against the #773 repro. Draft in
   [issues/02-volume-rm-force.md](../issues/02-volume-rm-force.md), with
   Docker's output from OrbStack (refused both times). Found on macOS
   2026-11-22, Kiri 0.2.2.

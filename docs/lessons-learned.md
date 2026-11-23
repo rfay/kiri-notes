@@ -122,11 +122,34 @@ Platform-specific items are marked.
 
 ## Process
 
-- Sessions working from this repository can't post to `libracoder/kiri`
-  (it isn't attached, and attaching it was refused). Write anything meant for
-  upstream into the results file; a person posts it with their own `gh`.
+- Sessions can't attach `libracoder/kiri` (refused). The `gh` on a session's
+  PATH is a wrapper (`…/ccr/bin/gh`) that goes through the session's GitHub
+  proxy, which reaches only attached repositories. Randy's own login is in
+  the real `/opt/homebrew/bin/gh`. Use that for `libracoder/kiri` **only when
+  Randy says so** in the conversation (he did on 2026-11-23, to post #773 and
+  open #781); otherwise write drafts (as in `issues/`) for him to post.
+- **Search Kiri's issues and its current main before filing.** Kiri moves
+  fast: on 2026-11-23 two of three drafted issues (DNS order, more than 58
+  layers) were already fixed on main, after 0.2.2. The local `rfay/kiri`
+  checkout was days behind; fetch `https://github.com/libracoder/kiri main`.
 - Kiri requires signed commits and a CLA. Commits for Kiri are authored as
-  Randy Fay and signed with his SSH key, which only he can do (through a
-  forwarded agent). Don't amend or force-push the Kiri branches.
+  `Randy Fay <randy@randyfay.com>` and signed with his SSH key. Sessions can't
+  sign with it: the session signing key file is empty, and no agent is
+  reachable. Workflow that worked for #781: commit with
+  `git -c commit.gpgsign=false commit --author 'Randy Fay <randy@randyfay.com>'`,
+  push to `rfay/kiri`, and have Randy run `git commit --amend --no-edit -S` and
+  `git push --force-with-lease`. Check `.commit.verification.verified` with
+  `gh api repos/rfay/kiri/commits/<sha>` and that the tree is unchanged before
+  opening the PR. Don't amend or force-push a branch Randy has signed.
+- No Rust toolchain on the Mac runner now. Build and test Kiri in a container
+  on OrbStack: `rust:1` (Debian), **not** `rust:1-alpine` (its musl toolchain
+  can't link proc-macros: `unable to find library -lgcc_s`). The `kiri` crate
+  is a binary: `cargo test -p kiri --bin kiri <filter>`. CI's unit tests are
+  `cargo test --workspace --exclude kiri-init --locked`; CI runs no fmt or
+  clippy, and both report findings on main, so compare a branch with main.
+- DDEV test runs on this runner: `DDEV_RUN_TEST_ANYWAY=true` makes some tests
+  very long (`TestDdevImportDB` 34 minutes on every database type). A
+  background command is stopped after 2 hours, so run long suites detached
+  (`nohup script &`) and watch their logs.
 - Kiri's CONTRIBUTING wants an issue, and agreement, before any non-trivial PR,
   before/after output from a real machine, and AI use disclosed in the PR template.

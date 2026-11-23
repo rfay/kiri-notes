@@ -2,16 +2,9 @@
 
 ## Waiting on upstream
 
-- [ ] **libracoder/kiri#595** (ownership fix): answer review comments, and sign
-      the CLA if CLA Assistant asks. Its checklist has two unticked boxes:
-  - "works on macOS, Windows and Linux": the macOS run is done and passed
-    ([results/macos-20261120-arm64.md](results/macos-20261120-arm64.md)).
-    Next: post its "For libracoder/kiri#595" section as a PR comment from your
-    own `gh`, then tick the box for macOS. Windows stays untested unless
-    someone runs it under WSL2.
-  - "`cargo fmt`, `cargo clippy` and the tests pass": they report the same
-    findings on main as on the branch (the repo has no fmt/clippy config). The
-    PR body explains this; leave the box as it is unless a maintainer asks.
+- [x] **libracoder/kiri#594** (ownership): fixed on Kiri main by #772
+      (2026-11-23), which carries #595 (closed unmerged), for 0.2.3. Nothing
+      left to do there.
 - [ ] **libracoder/kiri#597** (engine in a user namespace): wait for the
       maintainers to agree on an approach. Then open a PR from
       [`rfay/kiri:20261119_rfay_userns_devices`](https://github.com/rfay/kiri/tree/20261119_rfay_userns_devices),
@@ -30,7 +23,10 @@ output, are in [issues/](issues/README.md); post them from your own `gh`
       release. DDEV side: ddev/ddev#9172.
 - [x] **Problem 7, `volume rm --force` removes a volume in use**: filed as
       [libracoder/kiri#773](https://github.com/libracoder/kiri/issues/773).
-      Follow it.
+- [ ] Follow draft PR [libracoder/kiri#781](https://github.com/libracoder/kiri/pull/781)
+      (the fix for #773). Before marking it ready, ideally rerun the #773
+      repro against an engine built from the branch (needs a Rust toolchain on
+      a Mac, or the Linux engine via `scripts/build-kiri-linux.sh`).
 - [ ] Problem 9, macOS low ports on 127.0.0.1: a docs note or a feature
       request (privileged helper), low priority.
 - [ ] Problem 8 (error reporting, `--entrypoint ''`): optional, cosmetic.
@@ -116,6 +112,17 @@ Before filing:
   the environment.
 
 ## DDEV
+
+- [ ] Watch CI on [ddev/ddev#9167](https://github.com/ddev/ddev/pull/9167)
+      (Docker rootless fix 10c275d09), [#9171](https://github.com/ddev/ddev/pull/9171),
+      [#9173](https://github.com/ddev/ddev/pull/9173) and
+      [#9176](https://github.com/ddev/ddev/pull/9176); mark them ready when green.
+- [ ] When Kiri 0.2.3 (or later) is out with #772 (problem 1), #581
+      (problem 6), #588 (problem 11), #393 (problem 10) and #682 (problem 12),
+      retest #9167 on it. Those problems should be gone, and #9167 may only be
+      worth keeping for the router fallback: problem 5 (a running container
+      can't leave its first network) is still on Kiri main (5fa739a) and still
+      not filed.
 
 - [ ] [ddev/ddev#9167](https://github.com/ddev/ddev/pull/9167) (draft) is the
       branch. Works on Homebrew Kiri 0.2.2 on macOS, with DDEV's full test
