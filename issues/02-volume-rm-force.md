@@ -56,6 +56,21 @@ vol-in-use-test
 So on Docker, `force` doesn't override the in-use check (it lets a removal
 go ahead despite other errors, such as a missing volume).
 
+### Where
+
+Still on main (099f22c): `crates/kiri/src/daemon/engine.rs`, `volume_remove`:
+
+```rust
+let users = self.volume_users(name);
+if !users.is_empty() && !force {
+    return Err(Error::Conflict(format!("remove {name}: volume is in use - [{}]", users.join(", "))));
+}
+```
+
+`force` skips the in-use check. To match Docker, the in-use refusal should
+apply whatever `force` says (`force` could still skip the separate
+"container list may be missing a container" refusal below it).
+
 ### Impact
 
 Data loss. Tools pass `force` expecting Docker's behaviour. DDEV's volume
