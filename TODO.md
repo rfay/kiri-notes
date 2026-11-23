@@ -17,6 +17,24 @@
       [`rfay/kiri:20261119_rfay_userns_devices`](https://github.com/rfay/kiri/tree/20261119_rfay_userns_devices),
       adding a `tests/linux-host.sh` case if they want one.
 
+## New Kiri issues from the 2026-11-22 macOS run (not filed yet)
+
+Details and repros in [docs/kiri-fixes.md](docs/kiri-fixes.md); file from
+your own `gh` with Kiri's bug form, plain-CLI repro first.
+
+- [ ] **Problem 12, images with more than 58 layers can't start** (highest
+      priority: DDEV's `mysql:8.4`/`9.7` are unusable, on every platform, and
+      Kiri main has the same code). The busybox repro needs nothing else.
+- [ ] **Problem 6, multi-network name resolution** (two projects reach each
+      other's `db`). Run the two-network repro on a real Docker first and put
+      both outputs in the issue.
+- [ ] **Problem 7, `volume rm --force` removes a volume in use** (data loss).
+- [ ] Problem 9, macOS low ports on 127.0.0.1: a docs note or a feature
+      request (privileged helper), low priority.
+- [ ] Problem 8 (error reporting, `--entrypoint ''`): optional, cosmetic.
+- [ ] Ask for a release with #393 (image labels) and #588 (`--volumes-from`),
+      which DDEV needs (`ddev delete` leaving images, `ddev auth ssh`).
+
 ## Problem 5: a running container can't leave its first network (not filed yet)
 
 Kiri refuses `POST /networks/{id}/disconnect` for a running container's first
@@ -97,18 +115,26 @@ Before filing:
 
 ## DDEV
 
-- [ ] Decide whether to propose
-      [`rfay/ddev:20261120_rfay_kiri_ca_copyuidgid`](https://github.com/rfay/ddev/compare/main...rfay:ddev:20261120_rfay_kiri_ca_copyuidgid)
-      to ddev/ddev. Before that:
+- [ ] [ddev/ddev#9167](https://github.com/ddev/ddev/pull/9167) (draft) is the
+      branch. Works on Homebrew Kiri 0.2.2 on macOS, with DDEV's full test
+      suites run (2026-11-22). Still open before marking it ready:
   - run it on Podman (rootless with keep-id, and rootful), Colima, OrbStack,
     Rancher Desktop and Docker Desktop. `copyUIDGID` handling is the main unknown;
   - run the relevant DDEV tests (router and start tests) with the
     workspace-wide Docker lock;
   - if Kiri ships #595 and a fix for problem 5 first, the branch may only be
     worth keeping for the router fallback, or not at all.
-- [ ] Consider `IsKiri()` in `pkg/dockerutil/providers.go` (`OperatingSystem: Kiri`),
-      for `ddev debug test` output and provider-specific advice such as Kiri's
-      Mac app holding ports 80/443 ([docs/ddev-side-notes.md](docs/ddev-side-notes.md)).
+- [x] `IsKiri()`/`IsKiriMacOS()`, `docker-platform kiri`, and a hint for the
+      macOS privileged-port failure: on the #9167 branch (2f098e9).
+- [ ] Separate DDEV fix: PostgreSQL 12–17 snapshot restore on macOS can't
+      write `/etc/postgresql/conf.d/recovery.conf` (gid 20). Check on Docker
+      Desktop or OrbStack, then pass `-c restore_command=true` for 12+
+      ([docs/ddev-side-notes.md](docs/ddev-side-notes.md#found-by-running-ddevs-tests-on-kiri-not-kiri-problems)).
+- [ ] Separate DDEV fixes: `TestProcessHooks` (stale expected output) and
+      `TestUtilityDiagnoseCmd/OutsideHomeDirectory` (copies into an existing
+      directory). Both only run with `DDEV_RUN_TEST_ANYWAY`/`DDEV_TEST_OUTSIDE_HOME`.
+- [ ] A Kiri CI job for DDEV would need router ports 8080/8443, as
+      `.buildkite/test.sh` sets for rootless Podman and socktainer.
 
 ## Testing
 
@@ -117,9 +143,13 @@ Before filing:
       Released Kiri with released DDEV works one project at a time; the DDEV
       workaround branch works with two; #595 passes. Review the results file
       before posting its #595 section.
-- [ ] Optionally repeat on a Mac where the Kiri app can be opened normally,
-      to settle the Finder hang and to test DDEV's default ports (80/443) with
-      Kiri's domains off.
+- [x] Homebrew Kiri opened as an app, with DDEV #9167 and DDEV's full test
+      suites (2026-11-22):
+      [results/macos-20261122-arm64-brew.md](results/macos-20261122-arm64-brew.md).
+      DDEV's default ports can't work on Kiri on a Mac at all (problem 9).
+- [ ] `TestDebugRebuildCmd`: xhgui never got healthy inside the test (2 of 2)
+      but always did by hand. Look again if it shows up elsewhere.
+- [ ] The Finder mount hang wasn't rechecked with the app opened normally.
 - [ ] Try Kiri installed normally on Linux (`.deb` with systemd, not nested),
       where only #594 should matter. The `host.docker.internal` check is a
       real test there.

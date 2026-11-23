@@ -143,6 +143,146 @@ more than unplug it".
 - In DDEV (done on the branch above, and tested): if the in-place update
   fails, recreate the router as DDEV did before the in-place update existed.
 
+## 6. A name on two networks resolves on the wrong one: projects see each other's services
+
+- Upstream: not reported yet. Found on macOS 2026-11-22, Kiri 0.2.2
+  ([results](../results/macos-20261122-arm64-brew.md#step-3-two-projects-share-db-problem-6)).
+- DDEV workaround: none. **Run one project at a time on Kiri.**
+
+**Symptom.** With two DDEV projects running, `db` in one project's web
+container resolves to both projects' database containers, and
+`mysql -h db` from the second project reached the first project's database
+(`select @@hostname` → `kdns1-db` from `kdns2`). DDEV's
+`TestNetworkAmbiguity` fails (`should have 1 item(s), but has 2`).
+
+**Why.** Every DDEV service is on its project network and on the shared
+`ddev_default`, and Compose gives each service its name as an alias on both.
+Docker's resolver answers from the container's networks in order and stops at
+the first that knows the name, which for DDEV is the project network. Kiri
+also answers from one network, but picks the first one *listed in the create
+request* (`--network aa --network zz` answers from `aa`, the reverse from
+`zz`); for Compose-created DDEV containers that turns out to be
+`ddev_default`, which holds every project's `db`.
+
+**Fix (in Kiri).** Resolve in the same network order Docker uses, or at
+least prefer a network where the name is unique. An issue should show the
+two-network repro from the results file, and say what Docker returns, run on a
+real Docker (not done yet: no Docker engine was running on the test Mac).
+
+## 7. `volume rm --force` removes a volume that a container uses
+
+- Upstream: not reported yet. Found on macOS 2026-11-22, Kiri 0.2.2.
+
+`docker volume rm kv` with a (stopped) container using `kv` is refused, as in
+Docker. `docker volume rm -f kv` removes it, and the data is gone. Docker
+refuses this even with force (force only means "no error if it doesn't
+exist"). DDEV's `dockerutil.RemoveVolume()` always passes `Force: true` and
+relies on the refusal to tell the user which containers hold the volume
+(`TestRemoveVolumeInUseNamesContainer`). Data-loss risk, so worth filing.
+
+## 8. Small differences (cosmetic for DDEV)
+
+- A missing command: `docker run busybox nocommandbythatname` starts the
+  container, which exits 127 with `kiri: cannot start container: … executable
+  file not found in $PATH`. Docker fails the start request itself (and
+  DDEV's `TestRunSimpleContainer` checks for `failed to start container`).
+- `docker run --entrypoint '' IMAGE sh -c …` fails with
+  `exec: "/usr/local/sbin/": is a directory: permission denied`. Docker treats
+  an empty entrypoint as "none" and runs the command. DDEV doesn't do this
+  itself, as far as seen.
+- `exec` as a user that doesn't exist: Kiri writes
+  `kiri: cannot start container: user: unknown user nosuchuser` to the exec's
+  output and exits non-zero; Docker returns an API error and no output
+  (`TestCmdExecTerminalChild/daemon_error`).
+
+## 10. Image labels missing (0.2.2 only; fixed on Kiri main)
+
+`docker image inspect` of an image DDEV built shows `Config.Labels=null`, and
+`docker images --filter label=com.ddev.site-name` finds nothing. DDEV finds a
+project's images by label, so on 0.2.2:
+
+- `ddev delete` leaves the project's `*-built` images behind (disk use grows);
+  `TestDeleteCmd` fails.
+- `ddev utility check-custom-config` can't see which DDEV version a custom image
+  was built for (`com.ddev.image-tag`); `TestUtilityCheckCustomConfigCmd` fails.
+
+Kiri main has the fix: d80976c "Engine: expose image Config.Labels and inherit
+image labels on container create" (libracoder/kiri#393). Needs a release.
+
+## 11. `--volumes-from` mounts nothing (0.2.2 only; fixed on Kiri main)
+
+`docker run --volumes-from ddev-ssh-agent busybox ls /tmp/.ssh-agent` →
+`No such file or directory`, though `ddev-ssh-agent` has named volumes on
+`/tmp/.ssh` and `/tmp/.ssh-agent`. So the default **`ddev auth ssh`** (which
+adds keys through a helper container with `--volumes-from ddev-ssh-agent`)
+fails on 0.2.2:
+
+```text
+Adding key id_rsa
+Error connecting to agent: No such file or directory
+Failed to execute command `ddev auth ssh`: container run failed with exit code 2
+```
+
+`ddev auth ssh -f <keyfile>` works, because it pipes the key into
+`ssh-add -` through `exec` (that's how the 2026-11-20 run succeeded). Kiri
+main has the fix: 46b32cd "eight Docker behaviour differences fixed
+(--volumes-from, --pid, docker top, exposed ports, connection close)" (#588).
+
+## 12. Images with more than 58 layers can't run: MySQL 8.4 and 9.7 are unusable
+
+- Upstream: not reported yet. Found on macOS 2026-11-22, Kiri 0.2.2; the code
+  is the same on Kiri main (d80976c), on every platform.
+- DDEV workaround: none, other than another database type. `mysql:8.0` (37
+  layers) and MariaDB (33–37) work. **DDEV's `mysql:8.4` and `mysql:9.7` images
+  have 75 layers.**
+
+**Symptom.** Any container from such an image fails to start:
+
+```text
+$ docker run --rm --entrypoint true ddev/ddev-dbserver-mysql-8.4:v1.25.6
+docker: Error response from daemon: run 3efe58fd…: mount /var/lib/kiri/containers/3efe58fd…/rootfs:
+No such file or directory (os error 2)
+```
+
+(`Invalid argument (os error 22)` for some layer counts.) In DDEV, a project
+with `database: mysql:8.4` won't start, and
+`ddev utility migrate-database mysql:8.4` leaves the project broken. Synthetic
+images built `FROM busybox` with one `RUN` per layer: 40–58 layers run, 59, 60,
+61 and 70 fail.
+
+**Why.** `crates/kiri-init/src/linux/container.rs`, `mount_rootfs`, builds one
+overlayfs mount whose `lowerdir=` lists every layer by its 64-character hex
+name (relative to the layer store, about 65 bytes a layer), followed by the
+absolute `upperdir` and `workdir`. The kernel takes mount options in one page
+(4096 bytes): 58 × 65 = 3770 plus the two paths fits, 59 × 65 = 3835 plus
+them doesn't.
+
+**Fix (in Kiri).** As Docker's overlay2 does: short link names for the lower
+directories (Docker uses 26-character ids under `l/`), or the
+`lowerdir+=` option one layer at a time through `fsconfig()` (Linux 6.8+),
+or flattening/merging layers above a threshold. File with the synthetic
+repro: it needs nothing but busybox.
+
+This was first seen as an apparent race (`TestDebugMigrateDatabase`, the db
+container failing right after a build); it's this limit, reproducible every
+time.
+
+## 9. macOS: no ports below 1024 on 127.0.0.1
+
+- Not a Kiri bug as such; macOS lets an unprivileged process bind ports below
+  1024 only on the wildcard address, and Kiri's engine runs as the user.
+- DDEV: use router ports 8080/8443 (as DDEV's CI does for rootless Podman and
+  socktainer). The PR branch now says so when the router fails this way.
+
+`docker run -p 127.0.0.1:80:80` fails on Kiri (`ports not published; container
+stopped … Permission denied (os error 13)`, the container `Exited (137)`),
+while `-p 80:80` and `-p 127.0.0.1:1080:80` work. Docker Desktop gets around
+it with a helper that runs as root. Possible Kiri fix: a privileged helper
+for low ports, or bind the wildcard address and accept only loopback
+connections when a loopback address was asked for. Low priority; worth a
+mention in Kiri's docs ("DDEV and other tools that publish 127.0.0.1:80 need
+other ports").
+
 ## Upstream etiquette (from Kiri's CONTRIBUTING.md and PR template)
 
 - Issue first, and agreement, for anything bigger than a small fix; at most 3 open PRs.

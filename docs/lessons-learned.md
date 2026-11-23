@@ -20,6 +20,10 @@ Platform-specific items are marked.
 | A released DDEV (v1.25.5) passes everything on released Kiri, though the repro shows #594 | v1.25.5 keeps the mkcert CA in the `ddev-global-cache` volume and never copies it into the container. Only DDEV main after v1.25.5 copies it with `docker cp` | Not a contradiction. The Linux "released DDEV" runs used v1.25.5-87 from main. Say which DDEV you ran |
 | `ls ~/Kiri` or `ls ~/"Kiri Ddev"` hangs; Kiri's e2e suite stalls in "container files in Finder" | macOS: the Finder NFS mount is present but nothing answers. Seen with engines started by hand with `kiri daemon` (2026-11-20) | Record it, and run the suite with that section disabled (see the plan, step 6) |
 | e2e `host-net` fails: wants `192.168.64.`, gets `192.168.65.x` | macOS: another Virtualization.framework VM already uses 192.168.64.0/24 | Environmental, on every Kiri build |
+| Router `Exited (137)`; Kiri's log: `ports not published; container stopped … Permission denied (os error 13)` | macOS: Kiri can't publish ports below 1024 on 127.0.0.1 (problem 9) | `ddev config global --router-http-port=8080 --router-https-port=8443`, and stop any running project that still uses 80/443 |
+| `mount /var/lib/kiri/containers/<id>/rootfs: No such file or directory` (or `Invalid argument`) on start | The image has more than 58 layers (problem 12), e.g. DDEV's `mysql:8.4`/`mysql:9.7` | Use another database type; check with `docker image inspect -f '{{len .RootFS.Layers}}'` |
+| `ddev auth ssh`: `Error connecting to agent: No such file or directory` | Kiri 0.2.2's `--volumes-from` mounts nothing (problem 11) | `ddev auth ssh -f <keyfile>` |
+| `db` in one project's web container answers from another project | Kiri's multi-network name resolution (problem 6) | Run one project at a time |
 
 ## Facts about Kiri that matter to DDEV
 
@@ -94,6 +98,27 @@ Platform-specific items are marked.
   (One Linux "control" run accidentally used the workaround build this way.)
 - `ddev delete -Oy <name>` needs the same `DOCKER_CONTEXT` and
   `DDEV_XDG_CONFIG_HOME` as the project was started with.
+- DDEV's router publishes the ports of **every** running DDEV project on the
+  engine, whichever global config started it. A project someone else started
+  with 80/443 on the same Kiri makes your router fail too. Check
+  `docker ps` on the Kiri context first.
+- Running DDEV's tests against Kiri: set `DOCKER_CONTEXT=kiri` and a
+  `DDEV_XDG_CONFIG_HOME` whose global config uses 8080/8443 (the tests copy the
+  router ports from it). Nothing else may use the engine meanwhile: the tests
+  power off and delete projects.
+- This runner's environment sets `DDEV_RUN_TEST_ANYWAY=true` (and
+  `DDEV_TEST_OUTSIDE_HOME`, `DDEV_TEST_SHARE_CMD`), which **overrides
+  `GOTEST_SHORT`**: the full suites run. `pkg/ddevapp` took about 65 minutes and
+  `cmd/ddev/cmd` about 58 on Kiri (M1).
+- `go test -run '^$' ./cmd/ddev/cmd` is **not** a compile check there: the
+  package's `TestMain` sets up test sites with whatever `ddev` is on `PATH`,
+  against the current docker context. Use `go vet ./cmd/ddev/cmd`.
+- Through `make`, `TESTARGS` goes into a `bash -c` string: `$` is expanded by
+  make, and parentheses need quoting. `TESTARGS="-run 'TestA|TestB'"` works;
+  anchors with `$` don't.
+- A failure in DDEV's start path can end the whole `pkg/ddevapp` test binary
+  (it exits the process), and every later test in the package doesn't run.
+  Check the last `=== RUN` before trusting the totals.
 
 ## Process
 
