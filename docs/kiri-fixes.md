@@ -145,8 +145,12 @@ more than unplug it".
 
 ## 6. A name on two networks resolves on the wrong one: projects see each other's services
 
-- Upstream: not reported yet. Found on macOS 2026-11-22, Kiri 0.2.2
+- Upstream: not filed yet; draft with a standalone repro in
+  [issues/03-dns-network-order.md](../issues/03-dns-network-order.md).
+  Found on macOS 2026-11-22, Kiri 0.2.2
   ([results](../results/macos-20261122-arm64-brew.md#step-3-two-projects-share-db-problem-6)).
+- Confirmed against Docker on 2026-11-23 (OrbStack 29.8.2 and Colima 29.5.2):
+  a serious Kiri bug.
 - DDEV workaround: none. **Run one project at a time on Kiri.**
 
 **Symptom.** With two DDEV projects running, `db` in one project's web
@@ -156,27 +160,43 @@ container resolves to both projects' database containers, and
 `TestNetworkAmbiguity` fails (`should have 1 item(s), but has 2`).
 
 **Why.** Every DDEV service is on its project network and on the shared
-`ddev_default`, and Compose gives each service its name as an alias on both.
-Docker's resolver answers from the container's networks in order and stops at
-the first that knows the name, which for DDEV is the project network. Kiri
-also answers from one network, but picks the first one *listed in the create
-request* (`--network aa --network zz` answers from `aa`, the reverse from
-`zz`); for Compose-created DDEV containers that turns out to be
-`ddev_default`, which holds every project's `db`.
+`ddev_default`, and Compose gives each service its name as an alias on both,
+so `db` is ambiguous on `ddev_default`.
 
-**Fix (in Kiri).** Resolve in the same network order Docker uses, or at
-least prefer a network where the name is unique. An issue should show the
-two-network repro from the results file, and say what Docker returns, run on a
-real Docker (not done yet: no Docker engine was running on the test Mac).
+Docker doesn't isolate names by network either. Tested with plain `docker`
+on OrbStack and Colima: it answers from the container's networks **in
+network-name order**, returning every match on the first network that has the
+name, whatever order the networks were created or listed in. Rename the
+networks so the shared one sorts first (`a-shared`, `z-p1net`) and Docker
+returns both projects' `db` too. DDEV is safe on Docker only because
+`ddev-<project>_default` sorts before `ddev_default` (`-` is 0x2d, `_` is
+0x5f).
+
+Kiri answers from the network **listed first in the create request**
+(`--network aa --network zz` answers from `aa`, the reverse from `zz`, where
+Docker answers from `aa` both times). For Compose-created DDEV containers that
+is `ddev_default`, which holds every project's `db`. The full comparison
+table is in the issue draft.
+
+On OrbStack, two DDEV projects running at once each reach only their own
+`db` (`mysql -h db` → `odns1-db` and `odns2-db`); on Kiri the second reached
+the first's.
+
+**Fix (in Kiri).** Resolve in Docker's order (by network name). Worth a
+thought on the DDEV side too: relying on `-` sorting before `_` is fragile,
+and a DDEV-only alias that doesn't clash would be more robust, but that's
+not needed for Docker today.
 
 ## 7. `volume rm --force` removes a volume that a container uses
 
-- Upstream: not reported yet. Found on macOS 2026-11-22, Kiri 0.2.2.
+- Upstream: not filed yet; draft with a standalone repro in
+  [issues/02-volume-rm-force.md](../issues/02-volume-rm-force.md), with
+  Docker's output from OrbStack (refused both times). Found on macOS
+  2026-11-22, Kiri 0.2.2.
 
 `docker volume rm kv` with a (stopped) container using `kv` is refused, as in
 Docker. `docker volume rm -f kv` removes it, and the data is gone. Docker
-refuses this even with force (force only means "no error if it doesn't
-exist"). DDEV's `dockerutil.RemoveVolume()` always passes `Force: true` and
+refuses this even with force (checked on OrbStack). DDEV's `dockerutil.RemoveVolume()` always passes `Force: true` and
 relies on the refusal to tell the user which containers hold the volume
 (`TestRemoveVolumeInUseNamesContainer`). Data-loss risk, so worth filing.
 
@@ -230,7 +250,9 @@ main has the fix: 46b32cd "eight Docker behaviour differences fixed
 
 ## 12. Images with more than 58 layers can't run: MySQL 8.4 and 9.7 are unusable
 
-- Upstream: not reported yet. Found on macOS 2026-11-22, Kiri 0.2.2; the code
+- Upstream: not filed yet; draft with a standalone repro in
+  [issues/01-layer-limit.md](../issues/01-layer-limit.md) (Docker on OrbStack
+  runs 58, 59 and 75 layers). Found on macOS 2026-11-22, Kiri 0.2.2; the code
   is the same on Kiri main (d80976c), on every platform.
 - DDEV workaround: none, other than another database type. `mysql:8.0` (37
   layers) and MariaDB (33–37) work. **DDEV's `mysql:8.4` and `mysql:9.7` images

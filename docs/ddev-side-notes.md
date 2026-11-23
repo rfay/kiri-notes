@@ -50,22 +50,29 @@ provider run with 8080/8443 (rootless Podman, socktainer, Kiri on macOS).
 
 ## Found by running DDEV's tests on Kiri, not Kiri problems
 
-- **PostgreSQL 12–17 snapshot restore on macOS** (likely every provider,
-  only checked on Kiri). The restore appends to
-  `/etc/postgresql/conf.d/recovery.conf` as the container user
-  (`$DDEV_UID:$DDEV_GID` = `505:20` on a Mac). The db image's build does
-  `chgrp "$username" /etc/postgresql/conf.d`, but on macOS gid 20 already
-  exists in the image (`dialout`), so `groupadd --gid 20 <user>` fails and the
-  user's group becomes 1000. The container runs as gid 20, which isn't in
-  group 1000, and Docker adds no supplementary groups when both uid and gid
-  are given. Result: `bash: line 1: /etc/postgresql/conf.d/recovery.conf:
-  Permission denied`, the db container exits, and `TestDdevAllDatabases`
-  stops the whole `pkg/ddevapp` test binary (DDEV's failure path exits the
-  process). DDEV's CI runs with `GOTEST_SHORT=16`, which skips that test, so
-  it may never have run on a Mac. A possible fix: pass
-  `-c restore_command=true` for PostgreSQL 12+ as well (it's been a server
-  setting since 12; DDEV already does this for 18+), so nothing is written
-  under `/etc`. Needs a check on Docker Desktop or OrbStack first.
+- **PostgreSQL 15–17 snapshot restore on macOS: a DDEV bug, not Kiri's.**
+  Seen on Kiri and reproduced on OrbStack (2026-11-23); fixed in draft PR
+  [ddev/ddev#9171](https://github.com/ddev/ddev/pull/9171). The restore
+  appends to `/etc/postgresql/conf.d/recovery.conf` as the container user
+  (`505:20` on a Mac). Since #8379 (2026-05-27) the db image does
+  `chgrp "$username" /etc/postgresql/conf.d` (before: `chmod 777`). On macOS
+  gid 20 already exists in the image (`dialout`), so the user's own group
+  gets gid 1000, and the gid-20 container can't write there:
+  `Permission denied`, and the db container exits. 9–14 are fine because
+  their upstream images give `/etc/postgresql` to postgres (999), which DDEV
+  re-owns; 18 passes `-c restore_command=true` instead. The fix:
+  `chgrp "$gid"`, as the rest of #8379 already does.
+
+  **Why DDEV's tests missed it:** the only test that restores a PostgreSQL
+  snapshot in a container, `TestDdevAllDatabases`, is skipped with
+  `GOTEST_SHORT`. It runs only in the "Test All Project Types" job, on Linux,
+  where it passes (every version from 9 to 18 restored in the latest main
+  run), because the runner's gid is free in the image and `chgrp "$username"`
+  happens to hit the right gid. The macOS jobs, where gid 20 collides, run
+  with `GOTEST_SHORT=16`. #9171 adds `TestPostgresSnapshotRestore`
+  (PostgreSQL 17, not skipped with `GOTEST_SHORT`). It fails without the fix
+  and passes with it on OrbStack. A first version used the default (14),
+  which isn't affected, and passed without the fix.
 - **`TestUtilityDiagnoseCmd/OutsideHomeDirectory`** only runs with
   `DDEV_TEST_OUTSIDE_HOME=true` (set on this runner), and then always fails:
   it creates the temp directory and then calls `fileutil.CopyDir`, which

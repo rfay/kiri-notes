@@ -19,16 +19,19 @@
 
 ## New Kiri issues from the 2026-11-22 macOS run (not filed yet)
 
-Details and repros in [docs/kiri-fixes.md](docs/kiri-fixes.md); file from
-your own `gh` with Kiri's bug form, plain-CLI repro first.
+Ready-to-post drafts, each with a standalone repro and Kiri's and Docker's
+output, are in [issues/](issues/README.md); post them from your own `gh`
+(this repo's sessions can't attach `libracoder/kiri`).
 
-- [ ] **Problem 12, images with more than 58 layers can't start** (highest
-      priority: DDEV's `mysql:8.4`/`9.7` are unusable, on every platform, and
-      Kiri main has the same code). The busybox repro needs nothing else.
+- [ ] **Problem 12, images with more than 58 layers can't start**:
+      [issues/01-layer-limit.md](issues/01-layer-limit.md). Highest priority:
+      DDEV's `mysql:8.4`/`9.7` are unusable, on every platform, and Kiri main
+      has the same code.
 - [ ] **Problem 6, multi-network name resolution** (two projects reach each
-      other's `db`). Run the two-network repro on a real Docker first and put
-      both outputs in the issue.
-- [ ] **Problem 7, `volume rm --force` removes a volume in use** (data loss).
+      other's `db`), confirmed against Docker on OrbStack and Colima:
+      [issues/03-dns-network-order.md](issues/03-dns-network-order.md).
+- [ ] **Problem 7, `volume rm --force` removes a volume in use** (data loss):
+      [issues/02-volume-rm-force.md](issues/02-volume-rm-force.md).
 - [ ] Problem 9, macOS low ports on 127.0.0.1: a docs note or a feature
       request (privileged helper), low priority.
 - [ ] Problem 8 (error reporting, `--entrypoint ''`): optional, cosmetic.
@@ -126,9 +129,10 @@ Before filing:
     worth keeping for the router fallback, or not at all.
 - [x] `IsKiri()`/`IsKiriMacOS()`, `docker-platform kiri`, and a hint for the
       macOS privileged-port failure: on the #9167 branch (2f098e9).
-- [ ] Separate DDEV fix: PostgreSQL 12–17 snapshot restore on macOS can't
-      write `/etc/postgresql/conf.d/recovery.conf` (gid 20). Check on Docker
-      Desktop or OrbStack, then pass `-c restore_command=true` for 12+
+- [x] PostgreSQL 15–17 snapshot restore on macOS: a DDEV regression from
+      #8379, reproduced on OrbStack, fixed in draft PR
+      [ddev/ddev#9171](https://github.com/ddev/ddev/pull/9171) with a test that
+      runs on macOS CI
       ([docs/ddev-side-notes.md](docs/ddev-side-notes.md#found-by-running-ddevs-tests-on-kiri-not-kiri-problems)).
 - [ ] Separate DDEV fixes: `TestProcessHooks` (stale expected output) and
       `TestUtilityDiagnoseCmd/OutsideHomeDirectory` (copies into an existing

@@ -229,8 +229,15 @@ docker run --network zz --network aa …  →  test = t-zz's address
 ```
 
 So for DDEV's containers, Kiri treats `ddev_default` as the first network.
-Docker wasn't available on this machine for a side-by-side run. What's
-established is the DDEV test passing on Docker in CI, and failing here.
+**Follow-up, 2026-11-23, on OrbStack (Docker 29.8.2) and Colima (Docker
+29.5.2):** Docker answers in network-name order, whatever the request order,
+and returns every match on the first network that has the name. With the
+shared network named so it sorts first, Docker also returns both projects'
+`db`. DDEV is safe on Docker only because `ddev-<project>_default` sorts before
+`ddev_default`. On OrbStack, two DDEV projects running at once each reach only
+their own database (`mysql -h db` → `odns1-db`, `odns2-db`). The plain-CLI
+repro and the full comparison are in
+[issues/03-dns-network-order.md](../issues/03-dns-network-order.md).
 
 What it means: with two projects running, any service name (`db`, `web`,
 `redis`, …) can resolve to the other project's container. Database writes can
@@ -302,7 +309,7 @@ passed on Homebrew Kiri 0.2.2 with #9167. Every failure, by cause:
 | Test | Cause |
 |---|---|
 | `pkg/ddevapp` `TestConfigValidate` | requested port 80 whatever the router port; fails on any provider run with 8080/8443. Fixed on the branch (bbe3b7a); passes on Kiri |
-| `pkg/ddevapp` `TestDdevAllDatabases` (PostgreSQL 15) | snapshot restore can't write `/etc/postgresql/conf.d/recovery.conf` on macOS (gid 20 isn't the image user's group). Also reproduced by hand with `ddev snapshot restore`. Probably every macOS provider; see [ddev-side-notes](../docs/ddev-side-notes.md#found-by-running-ddevs-tests-on-kiri-not-kiri-problems). This ended the first `pkg/ddevapp` run |
+| `pkg/ddevapp` `TestDdevAllDatabases` (PostgreSQL 15) | snapshot restore can't write `/etc/postgresql/conf.d/recovery.conf` on macOS (gid 20 isn't the image user's group). Also reproduced by hand with `ddev snapshot restore`. A DDEV bug: reproduced on OrbStack on 2026-11-23, fixed in draft PR [ddev/ddev#9171](https://github.com/ddev/ddev/pull/9171); see [ddev-side-notes](../docs/ddev-side-notes.md#found-by-running-ddevs-tests-on-kiri-not-kiri-problems). This ended the first `pkg/ddevapp` run |
 | `pkg/ddevapp` `TestProcessHooks` | stale test: expects `Running task: …`, which DDEV now prints only at debug level as `=== Running task…`. CI skips it (`GOTEST_SHORT`); fails alone too |
 | `cmd` `TestUtilityDiagnoseCmd/OutsideHomeDirectory` | test bug, only with `DDEV_TEST_OUTSIDE_HOME=true` |
 
