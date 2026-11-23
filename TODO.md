@@ -33,38 +33,12 @@ output, are in [issues/](issues/README.md); post them from your own `gh`
 - [ ] Ask for a release with #393 (image labels) and #588 (`--volumes-from`),
       which DDEV needs (`ddev delete` leaving images, `ddev auth ssh`).
 
-## Problem 5: a running container can't leave its first network (not filed yet)
+## Problem 5: a running container can't leave its first network
 
-Kiri refuses `POST /networks/{id}/disconnect` for a running container's first
-network (409, "Kiri cannot disconnect a running container from its first
-network"). Docker allows it. So DDEV can't update the running router's
-aliases, and a second project can't start while another runs. Details:
-[docs/kiri-fixes.md](docs/kiri-fixes.md#5-running-container-cant-leave-its-first-network-breaks-a-second-project).
-
-On macOS with released DDEV (2026-11-20) it bites even with a single
-project: the router outlives stopped projects, so starting any project other
-than the one the router was created for fails until the router is removed
-(`ddev poweroff`). Kiri 0.2.2's message is shorter: "Kiri cannot disconnect a
-container from its first network (ddev_default)". Put both in the issue.
-
-Plan for the upstream issue, once the maintainers have responded to #594, #595 and #597:
-
-- [ ] Rebuild a Kiri engine with `scripts/build-kiri-linux.sh` and
-      `scripts/run-kiri-engine.sh` (the earlier engines were cleaned up).
-- [ ] Capture a plain `docker` CLI reproduction on both Docker and Kiri, with
-      real output: run a container on a user network, `docker network disconnect`
-      it while it runs, then `docker network connect --alias <name>` it again.
-      Docker should succeed and Kiri return 409. That hasn't been run as a
-      standalone repro yet; it was seen through DDEV.
-- [ ] File it with Kiri's bug form. Lead with the CLI repro, then the DDEV
-      context (`pkg/ddevapp/router.go`, `dockerutil.UpdateContainerNetworkAliases`).
-      Reference #418/#584 and the comment in `crates/kiri/src/daemon/engine.rs`
-      (`disconnect`) that explains why it's refused. Suggest the narrow case:
-      an immediate reconnect of the same container to the same network, which is
-      DDEV's pattern, or changing aliases without a disconnect. Say that DDEV has a
-      fallback, so it isn't urgent.
-- [ ] Post it from your own shell with `gh issue create --repo libracoder/kiri …`
-      (this repo's Claude sessions can't post to libracoder/kiri).
+- [x] Filed as [libracoder/kiri#789](https://github.com/libracoder/kiri/issues/789)
+      (2026-11-23), with a plain `docker` repro run on Kiri 0.2.2 and Docker
+      (OrbStack). Follow it. Until it's fixed, DDEV needs #9167's router
+      fallback on Kiri.
 
 ## macOS: the Finder mount hangs (not filed yet)
 
@@ -121,8 +95,8 @@ Before filing:
       (problem 6), #588 (problem 11), #393 (problem 10) and #682 (problem 12),
       retest #9167 on it. Those problems should be gone, and #9167 may only be
       worth keeping for the router fallback: problem 5 (a running container
-      can't leave its first network) is still on Kiri main (5fa739a) and still
-      not filed.
+      can't leave its first network, libracoder/kiri#789) is still on Kiri
+      main (5fa739a).
 
 - [ ] [ddev/ddev#9167](https://github.com/ddev/ddev/pull/9167) (draft) is the
       branch. Works on Homebrew Kiri 0.2.2 on macOS, with DDEV's full test

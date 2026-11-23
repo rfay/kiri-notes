@@ -11,6 +11,7 @@ CONTRIBUTING asks for its bug form and disclosure of AI use; adjust as needed.
 |---|---|---|
 | [01-layer-limit.md](01-layer-limit.md) | 12: images with more than 58 layers can't start | **not posted**: already fixed on Kiri main (a3b8ff0, libracoder/kiri#682) |
 | [02-volume-rm-force.md](02-volume-rm-force.md) | 7: `volume rm --force` removes a volume in use | **posted**: [libracoder/kiri#773](https://github.com/libracoder/kiri/issues/773) |
+| [04-running-first-network.md](04-running-first-network.md) | 5: a running container can't leave its first network | **posted**: [libracoder/kiri#789](https://github.com/libracoder/kiri/issues/789) |
 | [03-dns-network-order.md](03-dns-network-order.md) | 6: multi-network DNS answers from a different network than Docker | **not posted**: duplicate of [libracoder/kiri#294](https://github.com/libracoder/kiri/issues/294), fixed on Kiri main by #581 |
 
 To post one (title from the first line, body from the rest):

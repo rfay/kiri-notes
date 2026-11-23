@@ -115,7 +115,7 @@ an upstream issue on its own.
 
 ## 5. Running container can't leave its first network: breaks a second project
 
-- Upstream: not reported yet. libracoder/kiri#418 (fixed by #584) let a *stopped* container leave its first network; a running one is still refused.
+- Upstream: [libracoder/kiri#789](https://github.com/libracoder/kiri/issues/789) (filed 2026-11-23, draft in [issues/04-running-first-network.md](../issues/04-running-first-network.md)). libracoder/kiri#418 (fixed by #584) let a *stopped* container leave its first network; its closing comment says a running one needs "a separate change". Still refused on main 5fa739a.
 - DDEV workaround: [`rfay/ddev:20261120_rfay_kiri_ca_copyuidgid`](https://github.com/rfay/ddev/compare/main...rfay:ddev:20261120_rfay_kiri_ca_copyuidgid)
 
 **Symptom.** The first project starts. Starting a second while the first is
