@@ -116,6 +116,14 @@ an upstream issue on its own.
 ## 5. Running container can't leave its first network: breaks a second project
 
 - Upstream: [libracoder/kiri#789](https://github.com/libracoder/kiri/issues/789) (filed 2026-11-23, draft in [issues/04-running-first-network.md](../issues/04-running-first-network.md)). libracoder/kiri#418 (fixed by #584) let a *stopped* container leave its first network; its closing comment says a running one needs "a separate change". Still refused on main 5fa739a.
+- Fix: draft PR [libracoder/kiri#810](https://github.com/libracoder/kiri/pull/810)
+  (`rfay:20261123_running_first_network`, signed by Randy). Daemon-only: a
+  running container that leaves its first network loses its DNS names there
+  and stops showing on it, but stays plugged in until it stops; reconnecting
+  gives its names back with the new aliases. Tested on Kiri's Linux engine
+  built from main and the branch, in privileged containers on OrbStack: the
+  #789 repro, and DDEV main itself (a second project fails on main, and the
+  router is updated in place on the branch).
 - DDEV workaround: [`rfay/ddev:20261120_rfay_kiri_ca_copyuidgid`](https://github.com/rfay/ddev/compare/main...rfay:ddev:20261120_rfay_kiri_ca_copyuidgid)
 
 **Symptom.** The first project starts. Starting a second while the first is

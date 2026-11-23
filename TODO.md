@@ -37,8 +37,10 @@ output, are in [issues/](issues/README.md); post them from your own `gh`
 
 - [x] Filed as [libracoder/kiri#789](https://github.com/libracoder/kiri/issues/789)
       (2026-11-23), with a plain `docker` repro run on Kiri 0.2.2 and Docker
-      (OrbStack). Follow it. Until it's fixed, DDEV needs #9167's router
-      fallback on Kiri.
+      (OrbStack). Fix in draft PR
+      [libracoder/kiri#810](https://github.com/libracoder/kiri/pull/810):
+      follow it, and mark it ready when you're happy with it. Until it ships
+      in a release, DDEV needs #9167's router fallback on Kiri.
 
 ## macOS: the Finder mount hangs (not filed yet)
 

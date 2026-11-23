@@ -147,6 +147,15 @@ Platform-specific items are marked.
   is a binary: `cargo test -p kiri --bin kiri <filter>`. CI's unit tests are
   `cargo test --workspace --exclude kiri-init --locked`; CI runs no fmt or
   clippy, and both report findings on main, so compare a branch with main.
+- A real Kiri engine for before/after tests without the Mac app: build the
+  Linux engine static in `rust:1` (`rustup target add
+  aarch64-unknown-linux-musl`, `apt-get install musl-tools`, `cargo build
+  --release --target aarch64-unknown-linux-musl -p kiri -p kiri-init`),
+  then `scripts/run-kiri-engine.sh` on OrbStack. The Mac can't use a Unix
+  socket inside an OrbStack container through a bind mount, so run the
+  `docker` CLI (and DDEV, as a non-root user, router on 8080/8443 because
+  the engine holds 443) inside the engine container with
+  `DOCKER_HOST=unix:///run/kiri/docker.sock`. Used for #810 (2026-11-23).
 - DDEV test runs on this runner: `DDEV_RUN_TEST_ANYWAY=true` makes some tests
   very long (`TestDdevImportDB` 34 minutes on every database type). A
   background command is stopped after 2 hours, so run long suites detached
