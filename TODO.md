@@ -23,15 +23,14 @@ Ready-to-post drafts, each with a standalone repro and Kiri's and Docker's
 output, are in [issues/](issues/README.md); post them from your own `gh`
 (this repo's sessions can't attach `libracoder/kiri`).
 
-- [ ] **Problem 12, images with more than 58 layers can't start**:
-      [issues/01-layer-limit.md](issues/01-layer-limit.md). Highest priority:
-      DDEV's `mysql:8.4`/`9.7` are unusable, on every platform, and Kiri main
-      has the same code.
-- [ ] **Problem 6, multi-network name resolution** (two projects reach each
-      other's `db`), confirmed against Docker on OrbStack and Colima:
-      [issues/03-dns-network-order.md](issues/03-dns-network-order.md).
-- [ ] **Problem 7, `volume rm --force` removes a volume in use** (data loss):
-      [issues/02-volume-rm-force.md](issues/02-volume-rm-force.md).
+- [x] **Problem 12, more than 58 layers**: already fixed on Kiri main
+      (a3b8ff0, libracoder/kiri#682, 2026-11-21); not filed. Needs a release.
+- [x] **Problem 6, multi-network name resolution**: already reported as
+      libracoder/kiri#294 and fixed on Kiri main by #581; not filed. Needs a
+      release. DDEV side: ddev/ddev#9172.
+- [x] **Problem 7, `volume rm --force` removes a volume in use**: filed as
+      [libracoder/kiri#773](https://github.com/libracoder/kiri/issues/773).
+      Follow it.
 - [ ] Problem 9, macOS low ports on 127.0.0.1: a docs note or a feature
       request (privileged helper), low priority.
 - [ ] Problem 8 (error reporting, `--entrypoint ''`): optional, cosmetic.

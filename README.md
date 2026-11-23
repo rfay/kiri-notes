@@ -38,13 +38,13 @@ see [docs/ddev-side-notes.md](docs/ddev-side-notes.md). Details are in
 | 3 | Default `nofile` of 1048576 above the engine's hard limit | same as 2 | #597 | same branch |
 | 4 | ~~Restarting the engine container fails with `VM did not boot: File exists`~~ | was the test setup (no tmpfs on `/run`), not Kiri | none needed | `--tmpfs /run` in `run-kiri-engine.sh` |
 | 5 | `POST /networks/{id}/disconnect` refused (409) for a running container's first network; Docker allows it | **everyone running more than one DDEV project**: DDEV updates the router's aliases by disconnect/reconnect | not reported yet (follow-on to libracoder/kiri#418) | DDEV falls back to recreating the router (DDEV branch) |
-| 6 | A name on two networks resolves on the wrong one: `db` in one project reaches **another project's** database | **everyone running more than one DDEV project** | not reported yet | none; run one project at a time |
-| 7 | `volume rm --force` removes a volume a container uses (data lost); Docker refuses | everyone; DDEV's `RemoveVolume` uses force | not reported yet | none |
+| 6 | A name on two networks resolves on the wrong one: `db` in one project reaches **another project's** database | **everyone running more than one DDEV project** | [libracoder/kiri#294](https://github.com/libracoder/kiri/issues/294), **fixed on Kiri main** by #581 | DDEV side: [ddev/ddev#9172](https://github.com/ddev/ddev/issues/9172); until a release, one project at a time |
+| 7 | `volume rm --force` removes a volume a container uses (data lost); Docker refuses | everyone; DDEV's `RemoveVolume` uses force | [libracoder/kiri#773](https://github.com/libracoder/kiri/issues/773) (filed 2026-11-23) | none |
 | 8 | Missing command / unknown exec user reported as output and exit code, not an API error; `--entrypoint ''` broken | cosmetic for DDEV | not reported | none needed |
 | 9 | macOS: no ports below 1024 on 127.0.0.1 (macOS rule; the engine runs as the user) | **every Mac user**: DDEV's router defaults to 127.0.0.1:80/443 | not a bug as such | router ports 8080/8443; DDEV (#9167 branch) now says so |
 | 10 | Image labels dropped | `ddev delete` leaves images; image-tag checks | fixed on Kiri main (#393) | needs a Kiri release |
 | 11 | `--volumes-from` mounts nothing | default `ddev auth ssh` (use `ddev auth ssh -f <key>`) | fixed on Kiri main (#588) | needs a Kiri release |
-| 12 | Images with more than 58 layers can't start (overlayfs mount options exceed a page) | **DDEV's `mysql:8.4` and `mysql:9.7` (75 layers)**, on every platform | not reported yet | another database type |
+| 12 | Images with more than 58 layers can't start (overlayfs mount options exceed a page) | **DDEV's `mysql:8.4` and `mysql:9.7` (75 layers)**, on every platform | **fixed on Kiri main** (a3b8ff0, #682) | needs a Kiri release; until then another database type |
 
 ## Quick start (macOS, Homebrew Kiri)
 

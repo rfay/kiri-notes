@@ -145,8 +145,11 @@ more than unplug it".
 
 ## 6. A name on two networks resolves on the wrong one: projects see each other's services
 
-- Upstream: not filed yet; draft with a standalone repro in
-  [issues/03-dns-network-order.md](../issues/03-dns-network-order.md).
+- Upstream: [libracoder/kiri#294](https://github.com/libracoder/kiri/issues/294)
+  (reported 2026-11-15, with DDEV as the example), **fixed on Kiri main by
+  #581** on 2026-11-19, after 0.2.2. The draft in
+  [issues/03-dns-network-order.md](../issues/03-dns-network-order.md) wasn't
+  posted.
   Found on macOS 2026-11-22, Kiri 0.2.2
   ([results](../results/macos-20261122-arm64-brew.md#step-3-two-projects-share-db-problem-6)).
 - Confirmed against Docker on 2026-11-23 (OrbStack 29.8.2 and Colima 29.5.2):
@@ -195,7 +198,9 @@ fixes ddev/ddev#8390).
 
 ## 7. `volume rm --force` removes a volume that a container uses
 
-- Upstream: not filed yet; draft with a standalone repro in
+- Upstream: [libracoder/kiri#773](https://github.com/libracoder/kiri/issues/773)
+  (filed 2026-11-23); still on main 099f22c (`engine.rs`, `volume_remove`:
+  the in-use check is skipped when `force` is set). Draft in
   [issues/02-volume-rm-force.md](../issues/02-volume-rm-force.md), with
   Docker's output from OrbStack (refused both times). Found on macOS
   2026-11-22, Kiri 0.2.2.
@@ -256,10 +261,11 @@ main has the fix: 46b32cd "eight Docker behaviour differences fixed
 
 ## 12. Images with more than 58 layers can't run: MySQL 8.4 and 9.7 are unusable
 
-- Upstream: not filed yet; draft with a standalone repro in
-  [issues/01-layer-limit.md](../issues/01-layer-limit.md) (Docker on OrbStack
-  runs 58, 59 and 75 layers). Found on macOS 2026-11-22, Kiri 0.2.2; the code
-  is the same on Kiri main (d80976c), on every platform.
+- Upstream: **fixed on Kiri main** by a3b8ff0 "Guest: images of 60 or more
+  layers start" (libracoder/kiri#682, 2026-11-21, after 0.2.2): when the
+  options don't fit in a page, the lower layers are named by short links. The
+  `rfay/kiri` checkout used here (d80976c) was older. The draft in
+  [issues/01-layer-limit.md](../issues/01-layer-limit.md) wasn't posted.
 - DDEV workaround: none, other than another database type. `mysql:8.0` (37
   layers) and MariaDB (33–37) work. **DDEV's `mysql:8.4` and `mysql:9.7` images
   have 75 layers.**
